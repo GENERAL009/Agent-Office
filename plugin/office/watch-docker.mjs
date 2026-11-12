@@ -8,7 +8,7 @@ const POLL_MS = 3000;
 
 function dockerPs() {
   return new Promise((resolve, reject) => {
-    execFile('docker', ['ps', '-a', '--no-trunc', '--format', '{{json .}}'], { timeout: 5000, maxBuffer: 4_000_000 }, (err, out) => {
+    execFile('docker', ['ps', '-a', '--no-trunc', '--format', '{{json .}}'], { timeout: 5000, maxBuffer: 4_000_000, windowsHide: true }, (err, out) => {
       if (err) return reject(err);
       resolve(out.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
     });
@@ -35,7 +35,7 @@ export function startDocker(config, emit, status, resolve) {
   let warned = false;
 
   function follow(name, agent) {
-    const p = spawn('docker', ['logs', '-f', '--since', '1s', name], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const p = spawn('docker', ['logs', '-f', '--since', '1s', name], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const onData = (buf) => {
       for (const line of buf.toString().split('\n')) {
         const text = line.trim();

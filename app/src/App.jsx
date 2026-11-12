@@ -5,7 +5,7 @@ import Office from './Office.jsx';
 import Agent from './Agent.jsx';
 import { useOffice, BAD } from './store.js';
 import { startSim, stopSim } from './sim.js';
-import { startLive, stopLive, handleEvent, SERVER } from './live.js';
+import { startLive, stopLive, handleEvent, resolveServer } from './live.js';
 import { startSun } from './sun.js';
 import { BossController, BossHud } from './Boss.jsx';
 
@@ -13,7 +13,7 @@ const CONN = {
   off: ['Ulanmagan', '#8f9bb3'],
   connecting: ['Ulanmoqda…', '#e0a03a'],
   on: ['Server ulangan', '#4cc38a'],
-  error: ['Server topilmadi — /agent-office:office', '#ff5a5f'],
+  error: ['Server topilmadi — Claude’da /agent-office:office yoki /agent-office:doctor', '#ff5a5f'],
 };
 const STATE_UZ = {
   idle: 'bo‘sh', walking: 'yurmoqda', working: 'ishlamoqda', talking: 'gaplashmoqda', thinking: 'o‘ylamoqda',
@@ -45,7 +45,7 @@ const DEMO = [
 async function runDemo() {
   for (const ev of DEMO) {
     try {
-      await fetch(`${SERVER}/event`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(ev) });
+      await fetch(`${await resolveServer()}/event`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(ev) });
       if (useOffice.getState().conn !== 'on') handleEvent(ev);
     } catch {
       handleEvent(ev);
@@ -272,7 +272,7 @@ export default function App() {
   useEffect(() => {
     startSun();
     // jamoa: loyiha sozlamasi yoki .claude/agents (server ishlayotgan bo'lsa)
-    fetch(`${SERVER}/team`, { signal: AbortSignal.timeout(1500) })
+    resolveServer().then((base) => fetch(`${base}/team`, { signal: AbortSignal.timeout(1500) }))
       .then((r) => r.json())
       .then((j) => { if (Array.isArray(j.team) && j.team.length) useOffice.getState().setTeam(j.team, { replace: true }); if (j.project) useOffice.setState({ project: j.project }); })
       .catch(() => {});

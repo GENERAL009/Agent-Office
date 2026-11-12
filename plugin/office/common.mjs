@@ -1,16 +1,9 @@
 // Umumiy sozlamalar va yordamchilar (faqat Node'ning o'z modullari, hech qanday paket kerak emas).
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
-export const PORT = Number(process.env.AGENT_OFFICE_PORT || 4777);
-export const HOST = '127.0.0.1';
-export const BASE = `http://${HOST}:${PORT}`;
-export const RUN_DIR = path.join(os.tmpdir(), `agent-office-${PORT}`);
-export const PID_FILE = path.join(RUN_DIR, 'server.pid');
-export const LOG_FILE = path.join(RUN_DIR, 'server.log');
 export const UI_DIR = path.join(HERE, '..', 'ui');
 
 // Konteyner yoki terminal nomidan agentni taxmin qilish
@@ -46,28 +39,7 @@ export function loadConfig(projectDir) {
   }
 }
 
-export async function post(events, timeout = 500) {
-  try {
-    await fetch(`${BASE}/event`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(events),
-      signal: AbortSignal.timeout(timeout),
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function health(timeout = 400) {
-  try {
-    const r = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(timeout) });
-    return r.ok ? await r.json() : null;
-  } catch {
-    return null;
-  }
-}
+export { post, health, findServer, DEFAULT_PORT, RUN_DIR, LOG_FILE, STATE_FILE } from './net.mjs';
 
 export const trim = (v, n = 300) => (typeof v === 'string' && v.length > n ? v.slice(0, n) + '…' : v);
 

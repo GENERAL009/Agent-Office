@@ -1,12 +1,12 @@
 {
   "name": "agent-office",
   "displayName": "Agent Office 3D",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A 3D office in your browser for Claude Code. /agent-office:setup reads your project and gives every area its own agent and room. Agents show tool calls, Docker containers and terminal logs live; errors make them panic, stopped containers send them to the lounge. Walk around in boss mode and read their monitors.",
   "author": {
-    "name": "YOUR_GITHUB_NAME"
+    "name": "GENERAL009"
   },
-  "repository": "https://github.com/YOUR_GITHUB_NAME/agent-office",
+  "repository": "https://github.com/GENERAL009/Agent-Office",
   "license": "MIT",
   "keywords": [
     "visualization",

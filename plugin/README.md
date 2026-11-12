@@ -10,14 +10,15 @@ monitor. Sky and lighting follow the real sun at your location.
 Install:
 
 ```
-/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office
+/plugin install agent-office --marketplace GENERAL009/Agent-Office
 ```
 
 - `/agent-office:setup` — read the project, create one sub-agent per area and build a room for each
-- `/agent-office:office` — print the office URL (starts the local server if needed)
+- `/agent-office:office` — open the office in your browser (starts the local server if needed)
+- `/agent-office:doctor` — explain why the office does not open (server, port, address)
 - `/agent-office:office-stop` — stop the server
 - `/agent-office:office-watch <agent> <command…>` — run a command and stream its output to an agent
 
 The server starts automatically on SessionStart (set `AGENT_OFFICE_AUTOSTART=0` to turn that
-off) and listens on `127.0.0.1:4777` (`AGENT_OFFICE_PORT`). Optional project config lives in
+off) and listens on `127.0.0.1:4777`, moving to the next free port if 4777 is taken or reserved (`AGENT_OFFICE_PORT` sets the first one). Optional project config lives in
 `.agent-office.json`. See the repository README for details.

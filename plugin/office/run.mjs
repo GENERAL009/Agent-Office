@@ -5,7 +5,7 @@
 // Chiqish terminalda odatdagidek ko'rinadi. Buyruq xato bilan tugasa agent
 // dam olish xonasiga ketadi, xato qatorlarida esa vahimaga tushadi.
 import { spawn } from 'node:child_process';
-import { post, levelOf, trim, resolveAgent, BASE } from './common.mjs';
+import { post, levelOf, trim, resolveAgent, findServer } from './common.mjs';
 
 const argv = process.argv.slice(2);
 const sep = argv.indexOf('--');
@@ -19,7 +19,7 @@ const cmd = argv.slice(sep + 1);
 const name = opts.name || `$ ${cmd.join(' ')}`.slice(0, 40);
 // --agent berilmasa: buyruq nomini ofis jamoasidagi rolga bog'laymiz
 let team = [];
-try { team = (await (await fetch(`${BASE}/team`, { signal: AbortSignal.timeout(400) })).json()).team ?? []; } catch {}
+try { const srv = await findServer(); if (srv) team = (await (await fetch(`${srv.base}/team`, { signal: AbortSignal.timeout(400) })).json()).team ?? []; } catch {}
 const agent = opts.agent || resolveAgent(cmd.join(' '), {}, team.length ? team : [{ id: 'backend' }, { id: 'frontend' }, { id: 'devops' }]);
 const id = `term:${process.pid}`;
 
@@ -32,7 +32,7 @@ setInterval(() => { perSec = 0; }, 1000).unref();
 
 post({ hook: 'Service', id, name, kind: 'terminal', agent, state: 'up', detail: cmd.join(' ') });
 
-const child = spawn(cmd[0], cmd.slice(1), { stdio: ['inherit', 'pipe', 'pipe'], shell: process.platform === 'win32' });
+const child = spawn(cmd[0], cmd.slice(1), { stdio: ['inherit', 'pipe', 'pipe'], shell: process.platform === 'win32', windowsHide: true });
 let rest = '';
 const pipe = (out) => (buf) => {
   out.write(buf);

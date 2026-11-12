@@ -12,7 +12,7 @@ Watch them work, see your containers fail, walk in and read their screens.
 ![Windows · macOS · Linux](https://img.shields.io/badge/Windows%20·%20macOS%20·%20Linux-supported-2f9e64)
 ![License MIT](https://img.shields.io/badge/license-MIT-7c4dff)
 
-[Documentation](https://YOUR_GITHUB_NAME.github.io/agent-office/) · [Install](#install) · [O‘zbekcha](#ozbekcha)
+[Documentation](https://general009.github.io/Agent-Office/) · [Install](#install) · [O‘zbekcha](#ozbekcha)
 
 <img src="docs/office.png" alt="Top view of the 3D office with Manager, Flutter, Backend, QA, DevOps and ML rooms" width="100%">
 
@@ -45,13 +45,13 @@ You need [Claude Code](https://claude.com/claude-code) and **Node.js 18 or newer
 Inside Claude Code:
 
 ```
-/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office
+/plugin install agent-office --marketplace GENERAL009/Agent-Office
 ```
 
 Or from your terminal:
 
 ```bash
-claude plugin marketplace add YOUR_GITHUB_NAME/agent-office
+claude plugin marketplace add GENERAL009/Agent-Office
 claude plugin install agent-office@agent-office
 ```
 
@@ -63,15 +63,15 @@ claude plugin install agent-office@agent-office
    claude
    ```
    The office server starts on its own when the session starts.
-2. Run `/agent-office:office` — it prints the address (default `http://127.0.0.1:4777`). Open it in your browser and switch the panel to **Live**.
+2. Run `/agent-office:office` — it opens the office in your browser (usually `http://127.0.0.1:4777`). Switch the panel to **Live**.
 3. Run `/agent-office:setup` — Claude reads your project, writes the agents and the office builds their rooms.
 4. Give Claude work as usual, for example *"ask the flutter agent to build the login screen"*, and watch the agent walk to its desk.
 
 ### Try it without Claude
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_NAME/agent-office
-cd agent-office
+git clone https://github.com/GENERAL009/Agent-Office
+cd Agent-Office
 node plugin/office/ctl.mjs start
 ```
 
@@ -81,7 +81,8 @@ Open `http://127.0.0.1:4777`. **Simulation** mode runs a pretend team with stage
 
 | Command | What it does |
 |---|---|
-| `/agent-office:office` | Prints the office address, starting the server if needed |
+| `/agent-office:office` | Starts the server if needed and opens the office in your browser |
+| `/agent-office:doctor` | Explains why the office doesn't open: server, port, address, Docker |
 | `/agent-office:setup` | Reads the project, writes `.claude/agents/*.md` and `.agent-office.json`, builds the rooms |
 | `/agent-office:office-watch <agent> <command…>` | Runs a command and streams its output to an agent |
 | `/agent-office:office-stop` | Stops the server |
@@ -148,7 +149,7 @@ The team comes from `team` in this file, otherwise from your project's `.claude/
 
 | Environment variable | Default | Meaning |
 |---|---|---|
-| `AGENT_OFFICE_PORT` | `4777` | Server port |
+| `AGENT_OFFICE_PORT` | `4777` | First port to try; the next 13 are fallbacks |
 | `AGENT_OFFICE_AUTOSTART` | `1` | Set to `0` to stop the server starting with each session |
 | `AGENT_OFFICE_DEBUG` | — | Print every event the server receives |
 
@@ -158,8 +159,10 @@ The office asks the browser for your location; if you decline it uses your IP's 
 
 ## Troubleshooting
 
-**The panel says "Server topilmadi" (server not found).**
-Run `/agent-office:office` in Claude, or `node plugin/office/ctl.mjs start` in the repository folder. Server output is in your temp folder: `agent-office-4777/server.log`.
+**The office doesn't open / the panel says "Server topilmadi".**
+Run `/agent-office:doctor` in Claude (or `node plugin/office/ctl.mjs doctor`). It checks which address answers, whether port 4777 is free, taken or reserved by Windows, shows the server log and tells you what to do.
+
+The server is built to find a working address by itself: it listens on `127.0.0.1` (also `[::1]`), and if port 4777 is taken by another program or reserved by Windows (Hyper-V, WSL and Docker reserve port ranges) it moves to 4778, 4779 … 4790, then any free port. The address it picked is saved in `<temp>/agent-office/server.json`, and the hooks, commands and the browser page find it from there. `/agent-office:office` always prints the address in use plus an alternative (`localhost`).
 
 **`Cannot find module …ctl.mjs`.**
 Check the path is relative to where you are. Inside the repository folder it's `node plugin/office/ctl.mjs start` (on Windows `node plugin\office\ctl.mjs start`).
@@ -172,8 +175,8 @@ claude plugin marketplace update agent-office
 claude plugin install agent-office@agent-office
 ```
 
-**Port 4777 is taken.**
-Set `AGENT_OFFICE_PORT` to another port before starting Claude.
+**I want a fixed port.**
+Set `AGENT_OFFICE_PORT` before starting Claude; the server tries that port first and the next ones after it.
 
 **A container is mapped to the wrong agent.**
 Add it to `containers` in `.agent-office.json`.
@@ -213,8 +216,9 @@ To publish the documentation site, enable GitHub Pages: **Settings → Pages →
 
 Claude Code uchun plugin: har bir sub-agentning 3D ofisda o‘z stoli va xonasi bor.
 
-- **O‘rnatish:** Claude Code ichida `/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office`. Faqat Node.js 18+ kerak.
-- **Ochish:** `/agent-office:office` — manzilni beradi (`http://127.0.0.1:4777`), brauzerda oching va panelda **Live** ni tanlang.
+- **O‘rnatish:** Claude Code ichida `/plugin install agent-office --marketplace GENERAL009/Agent-Office`. Faqat Node.js 18+ kerak.
+- **Ochish:** `/agent-office:office` — ofisni brauzerda o‘zi ochadi, panelda **Live** ni tanlang. Port band bo‘lsa, server o‘zi keyingi bo‘sh portni oladi.
+- **Ochilmasa:** `/agent-office:doctor` — sababini (port, manzil, server logi) aniqlab, nima qilishni aytadi.
 - **Jamoa:** `/agent-office:setup` — Claude loyihangizni o‘qib, har bir yo‘nalish uchun agent yaratadi, ofis har biriga xona quradi.
 - **Nosozliklar:** xato chiqsa agent vahimaga tushadi (qizil holat, chiroq, sirena), Docker konteyneri to‘xtasa agent dam olish xonasiga ketadi.
 - **Boshliq rejimi:** <kbd>B</kbd> — WASD bilan yurasiz, stol yonida <kbd>E</kbd> bosib agent terminalini o‘qiysiz.

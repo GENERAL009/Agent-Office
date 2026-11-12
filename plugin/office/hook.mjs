@@ -31,7 +31,7 @@ process.stdin.on('end', async () => {
 
     if (hook === 'SessionStart' && process.env.AGENT_OFFICE_AUTOSTART !== '0') {
       const dir = process.env.CLAUDE_PROJECT_DIR || e.cwd || process.cwd();
-      await ensureServer(dir, 1200);
+      await ensureServer(dir, 1500);
     }
 
     const ev = {

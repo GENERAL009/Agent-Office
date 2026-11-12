@@ -3,7 +3,30 @@
 import { useOffice } from './store.js';
 
 // Ofis serverning o'zidan ochilsa — o'sha manzil; Vite dev serverdan ochilsa — 4777 port
-export const SERVER = location.port === '5173' || location.protocol === 'file:' ? 'http://127.0.0.1:4777' : location.origin;
+// Ofis serverining o'zidan ochilgan bo'lsa — o'sha manzil. Vite dev (5173) yoki fayldan ochilsa —
+// serverni qidiramiz: 127.0.0.1 / localhost, port 4777…4790.
+const served = !(location.port === '5173' || location.protocol === 'file:');
+export let SERVER = served ? location.origin : 'http://127.0.0.1:4777';
+let resolving = null;
+export function resolveServer() {
+  if (served) return Promise.resolve(SERVER);
+  resolving ??= (async () => {
+    const bases = [];
+    for (let p = 4777; p <= 4790; p++) for (const h of ['127.0.0.1', 'localhost']) bases.push(`http://${h}:${p}`);
+    const found = await new Promise((resolve) => {
+      let left = bases.length;
+      for (const b of bases) {
+        fetch(`${b}/health`, { signal: AbortSignal.timeout(1200) })
+          .then((r) => r.json()).then((j) => (j?.name === 'agent-office' ? resolve(b) : --left || resolve(null)))
+          .catch(() => --left || resolve(null));
+      }
+    });
+    resolving = null;
+    if (found) SERVER = found;
+    return SERVER;
+  })();
+  return resolving;
+}
 const S = () => useOffice.getState();
 const SPAWN_TOOLS = new Set(['Task', 'Agent']);
 const short = (s, n = 60) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s ?? '');
@@ -160,10 +183,12 @@ export function handleEvent(e) {
 }
 
 let es = null;
-export function startLive() {
+export async function startLive() {
   stopLive();
   S().setConn('connecting');
-  es = new EventSource(`${SERVER}/events`);
+  const base = await resolveServer();
+  if (S().mode !== 'live') return;
+  es = new EventSource(`${base}/events`);
   es.onopen = () => S().setConn('on');
   es.onerror = () => S().setConn('error');
   es.onmessage = (m) => { try { handleEvent(JSON.parse(m.data)); } catch (err) { console.warn(err); } };

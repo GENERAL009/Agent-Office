@@ -145,7 +145,7 @@ footer a { color: #fff; }
         <span data-l="uz">Claude Code uchun plugin: har bir sub-agentning o‘z stoli bor. Ularning ishini kuzating, konteynerlar yiqilganini ko‘ring, xonaga kirib monitorini o‘qing.</span>
       </p>
       <div class="install">
-        <code id="cmd">/plugin install <b>agent-office</b> --marketplace YOUR_GITHUB_NAME/agent-office</code>
+        <code id="cmd">/plugin install <b>agent-office</b> --marketplace GENERAL009/Agent-Office</code>
         <button class="copy" type="button" data-copy="cmd"><span data-l="en">Copy</span><span data-l="uz">Nusxa</span></button>
       </div>
       <p class="hero-note">
@@ -265,14 +265,15 @@ footer a { color: #fff; }
           <h3><span data-l="en">Commands</span><span data-l="uz">Buyruqlar</span></h3>
           <table>
             <tr><th><span data-l="en">Command</span><span data-l="uz">Buyruq</span></th><th><span data-l="en">What it does</span><span data-l="uz">Nima qiladi</span></th></tr>
-            <tr><td><code>/agent-office:office</code></td><td><span data-l="en">Prints the office URL, starting the server if needed</span><span data-l="uz">Ofis manzilini chiqaradi, kerak bo‘lsa serverni yoqadi</span></td></tr>
+            <tr><td><code>/agent-office:office</code></td><td><span data-l="en">Starts the server if needed and opens the office in your browser</span><span data-l="uz">Kerak bo‘lsa serverni yoqib, ofisni brauzerda ochadi</span></td></tr>
+            <tr><td><code>/agent-office:doctor</code></td><td><span data-l="en">Explains why the office doesn’t open: server, port, address</span><span data-l="uz">Ofis nega ochilmayotganini aniqlaydi: server, port, manzil</span></td></tr>
             <tr><td><code>/agent-office:setup</code></td><td><span data-l="en">Reads the project and creates the team and its rooms</span><span data-l="uz">Loyihani o‘qib, jamoa va xonalarni yaratadi</span></td></tr>
             <tr><td><code>/agent-office:office-watch</code></td><td><span data-l="en">Runs a command and streams its output to an agent</span><span data-l="uz">Buyruqni ishga tushirib, chiqishini agentga ulaydi</span></td></tr>
             <tr><td><code>/agent-office:office-stop</code></td><td><span data-l="en">Stops the server</span><span data-l="uz">Serverni to‘xtatadi</span></td></tr>
           </table>
           <h3 style="margin-top:36px"><span data-l="en">Environment</span><span data-l="uz">Muhit o‘zgaruvchilari</span></h3>
           <table>
-            <tr><td><code>AGENT_OFFICE_PORT</code></td><td><span data-l="en">Server port, default 4777</span><span data-l="uz">Server porti, standart 4777</span></td></tr>
+            <tr><td><code>AGENT_OFFICE_PORT</code></td><td><span data-l="en">First port to try (4777); if it is busy the next free one is used</span><span data-l="uz">Birinchi sinaladigan port (4777); band bo‘lsa keyingi bo‘sh port olinadi</span></td></tr>
             <tr><td><code>AGENT_OFFICE_AUTOSTART=0</code></td><td><span data-l="en">Don’t start the server when a session starts</span><span data-l="uz">Sessiya boshlanganda serverni yoqmaslik</span></td></tr>
             <tr><td><code>AGENT_OFFICE_DEBUG=1</code></td><td><span data-l="en">Print every event the server receives</span><span data-l="uz">Server olgan har bir hodisani chiqarish</span></td></tr>
           </table>
@@ -325,8 +326,8 @@ footer a { color: #fff; }
 
 <footer>
   <div class="wrap">
-    <span data-l="en">MIT licensed. Source and issues on <a href="https://github.com/YOUR_GITHUB_NAME/agent-office">GitHub</a>.</span>
-    <span data-l="uz">MIT litsenziyasi. Kod va takliflar — <a href="https://github.com/YOUR_GITHUB_NAME/agent-office">GitHub</a>’da.</span>
+    <span data-l="en">MIT licensed. Source and issues on <a href="https://github.com/GENERAL009/Agent-Office">GitHub</a>.</span>
+    <span data-l="uz">MIT litsenziyasi. Kod va takliflar — <a href="https://github.com/GENERAL009/Agent-Office">GitHub</a>’da.</span>
   </div>
 </footer>
 
