@@ -8,12 +8,14 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PORT, HOST, UI_DIR, PID_FILE, RUN_DIR, loadConfig } from './common.mjs';
+import { PORT, HOST, UI_DIR, PID_FILE, RUN_DIR, loadConfig, resolveAgent } from './common.mjs';
 import { startDocker } from './watch-docker.mjs';
 import { startFiles } from './watch-files.mjs';
+import { computeTeam, signature } from './team.mjs';
 
 const project = process.env.AGENT_OFFICE_PROJECT || process.cwd();
-const config = loadConfig(project);
+const config = loadConfig(project); // o'zgarganda joyida yangilanadi
+let team = computeTeam(project, config);
 const clients = new Set();
 const services = new Map(); // id -> oxirgi Service hodisasi
 const recentLogs = []; // yangi ulangan brauzer uchun oxirgi loglar
@@ -69,9 +71,14 @@ const server = http.createServer((req, res) => {
 
   if (req.url === '/events') {
     res.writeHead(200, { ...CORS, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-    res.write(`data: ${JSON.stringify({ hook: 'Snapshot', services: [...services.values()], logs: recentLogs, project: path.basename(project) })}\n\n`);
+    res.write(`data: ${JSON.stringify({ hook: 'Snapshot', services: [...services.values()], logs: recentLogs, project: path.basename(project), team })}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));
+    return;
+  }
+
+  if (req.url === '/team') {
+    res.writeHead(200, { ...CORS, 'content-type': 'application/json' }).end(JSON.stringify({ team, project: path.basename(project) }));
     return;
   }
 
@@ -96,11 +103,27 @@ server.listen(PORT, HOST, () => {
   fs.mkdirSync(RUN_DIR, { recursive: true });
   fs.writeFileSync(PID_FILE, String(process.pid));
   console.log(`Agent Office: http://${HOST}:${PORT}  project: ${project}`);
-  if (config.docker !== false) startDocker(config, broadcast, status);
-  startFiles(config, project, broadcast, status);
+  const resolve = (name) => resolveAgent(name, config, team);
+  if (config.docker !== false) startDocker(config, broadcast, status, resolve);
+  startFiles(config, project, broadcast, status, resolve);
 });
 
 setInterval(() => { for (const c of clients) c.write(': ping\n\n'); }, 15_000);
+
+// .agent-office.json yoki .claude/agents o'zgarsa — jamoani qayta o'qib, ofisga yuboramiz (bino o'sadi)
+let sig = signature(project);
+setInterval(() => {
+  const now = signature(project);
+  if (now === sig) return;
+  sig = now;
+  Object.assign(config, loadConfig(project));
+  const next = computeTeam(project, config);
+  if (JSON.stringify(next) !== JSON.stringify(team)) {
+    team = next;
+    broadcast({ hook: 'Team', team });
+    console.log(`Team changed: ${team.map((r) => r.id).join(', ')}`);
+  }
+}, 2000);
 const bye = () => { try { fs.unlinkSync(PID_FILE); } catch {} process.exit(0); };
 process.on('SIGTERM', bye);
 process.on('SIGINT', bye);

@@ -1,7 +1,7 @@
 // Docker kuzatuvchisi: konteyner holatini har 3 soniyada tekshiradi va
 // ishlayotgan konteynerlarning loglarini oqim bilan o'qiydi.
 import { spawn, execFile } from 'node:child_process';
-import { guessAgent, levelOf, trim } from './common.mjs';
+import { levelOf, trim } from './common.mjs';
 import { RateLimit } from './rate.mjs';
 
 const POLL_MS = 3000;
@@ -26,10 +26,10 @@ function stateOf(c) {
   return code === 0 || code === 143 || code === 130 ? 'stopped' : 'down';
 }
 
-export function startDocker(config, emit, status) {
+export function startDocker(config, emit, status, resolve) {
   const tracked = new Map(); // name -> { state, agent, logs }
   const ignore = new Set(config.ignoreContainers || []);
-  const agentFor = (name) => config.containers?.[name] ?? guessAgent(name);
+  const agentFor = (name) => resolve(name);
   const limit = new RateLimit();
   let firstPoll = true;
   let warned = false;

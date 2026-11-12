@@ -7,10 +7,16 @@ and **log files**:
 
 - an error line or a failed tool call makes the agent **panic** — red status, flashing alarm light, siren on the server rack, an optional beep;
 - a container that stops, crash-loops or turns `unhealthy` sends its agent to the **lounge** until it is back up;
+- `/agent-office:setup` reads your project and builds a **team with its own rooms** — a Flutter room with a device lab, a DevOps room with a server rack, a QA room with a bug board;
+- **boss mode**: walk through the office in third person, enter any room and read an agent's terminal on its monitor;
 - the sky, sunlight and office lamps follow the **real sun** at your location.
 
-![Day](docs/day.png)
+**Documentation site:** `docs/index.html` (English / O‘zbekcha). Turn on GitHub Pages
+(Settings → Pages → Deploy from branch → `main` / `/docs`) to publish it.
+
+![Office](docs/office.png)
 ![Incident](docs/incident.png)
+![Boss mode](docs/terminal.png)
 
 ## Install
 
@@ -40,14 +46,48 @@ The office server starts by itself when a Claude Code session starts. Then:
 | Command | What it does |
 |---|---|
 | `/agent-office:office` | prints the office URL (default `http://127.0.0.1:4777`), starts the server if needed |
+| `/agent-office:setup` | reads the project, writes `.claude/agents/*.md` and `.agent-office.json`, the office builds the rooms |
 | `/agent-office:office-stop` | stops the server |
 | `/agent-office:office-watch backend npm run dev` | runs a command and streams its output to the backend agent |
 
 Open the URL and switch the panel to **Live**. **Simulation** mode needs nothing and shows
 every feature, including staged errors and container crashes.
 
-The plugin ships three sub-agents — `backend`, `frontend`, `devops` — and each one has its
-own desk. Any other sub-agent type Claude launches gets a spare desk.
+### Your team, your rooms
+
+The office builds one room per role. The team comes from, in order:
+
+1. `team` in `.agent-office.json`,
+2. the project's own sub-agents in `.claude/agents/*.md`,
+3. the three agents this plugin ships: `backend`, `frontend`, `devops`.
+
+Run `/agent-office:setup` and Claude scans the repository (`pubspec.yaml`, `package.json`,
+`go.mod`, `pyproject.toml`, Dockerfiles, compose services, CI, test folders), then writes an
+agent per area with the real paths, stack and test commands. The running office notices the new
+files within two seconds: the building grows to the right and each new hire walks in through the
+front door. A sub-agent type Claude launches that the office has never seen also gets a room.
+
+Room furniture follows the role: Flutter / mobile → device lab and a phone display, DevOps →
+server rack and monitoring wall, QA → bug board, ML / data → GPU rack and charts, frontend /
+design → easel, docs → bookshelf.
+
+### Boss mode
+
+Press **B** (or the button in the panel). You appear next to the entrance and the camera follows
+you from behind.
+
+| Key | Action |
+|---|---|
+| `W A S D` / arrows | walk (relative to the camera) |
+| `Shift` | run |
+| mouse drag / wheel | turn and zoom the camera |
+| `E` | open the monitor you are standing at |
+| `Esc` | close the monitor, then leave boss mode |
+
+Every desk's left monitor shows its agent's latest log lines, and turns red when the agent
+panics. `E` at a desk opens the full terminal; at the DevOps monitoring wall you get every
+service; at the meeting-room screen, the whole event feed. Agents turn and greet you as you
+pass — the ones in trouble tell you what broke.
 
 ### Terminal commands
 
@@ -63,17 +103,19 @@ panic; a non-zero exit sends it to the lounge.
 ### Docker
 
 If `docker` is on your PATH, every container that is running while the office is open is
-tracked automatically. Containers are mapped to agents by name (`api`, `db`, `worker` →
-backend; `web`, `next`, `vite` → frontend; `nginx`, `redis`, `grafana` … → devops). Their
-logs are followed with `docker logs -f`.
+tracked automatically. A container is mapped to an agent by `containers` in the config (a compose
+service name also matches `project-service-1`), then by a role name inside the container name,
+then by kind (`api`, `db`, `worker` → backend; `web`, `next` → frontend; `flutter`, `mobile` →
+mobile; `nginx`, `redis`, `grafana` … → devops). Logs are followed with `docker logs -f`.
 
 ### Configuration (optional)
 
-Put `.agent-office.json` in your project root:
+Put `.agent-office.json` in your project root (`/agent-office:setup` writes it for you):
 
 ```json
 {
-  "containers": { "shop-api-1": "backend", "shop-web-1": "frontend" },
+  "team": [{ "id": "flutter", "name": "Flutter" }, { "id": "backend" }, { "id": "devops" }],
+  "containers": { "api": "backend", "shop-web-1": "frontend" },
   "ignoreContainers": ["buildx_buildkit_default"],
   "logs": [{ "path": "logs/api.log", "agent": "backend" }],
   "allContainers": false,
@@ -133,8 +175,11 @@ Claude Code uchun plugin: agentlaringiz, Docker konteynerlari va terminal loglar
 konteyner to‘xtasa agent dam olish xonasiga ketadi. Osmon va yorug‘lik joylashuvingizdagi
 haqiqiy quyoshga qarab o‘zgaradi.
 
-O‘rnatish: `/plugin marketplace add YOUR_GITHUB_NAME/agent-office`, keyin
-`/plugin install agent-office@agent-office`. Ofisni ochish: `/agent-office:office`.
+- `/agent-office:setup` — Claude loyihangizni o‘qib, har bir yo‘nalish uchun agent yaratadi; ofis har biriga alohida xona quradi (Flutter, Backend, DevOps, QA …).
+- **B** — boshliq rejimi: WASD bilan yurasiz, xonalarga kirasiz, stol yonida **E** bosib agent terminalini o‘qiysiz.
+
+O‘rnatish: `/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office`.
+Ofisni ochish: `/agent-office:office`. To‘liq hujjat: `docs/index.html`.
 
 ## License
 

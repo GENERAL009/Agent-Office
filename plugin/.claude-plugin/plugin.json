@@ -1,8 +1,8 @@
 {
   "name": "agent-office",
   "displayName": "Agent Office 3D",
-  "version": "1.0.0",
-  "description": "A 3D office in your browser that shows Claude Code sub-agents, Docker containers and terminal logs live. Errors make agents panic, stopped containers send them to the lounge.",
+  "version": "1.1.0",
+  "description": "A 3D office in your browser for Claude Code. /agent-office:setup reads your project and gives every area its own agent and room. Agents show tool calls, Docker containers and terminal logs live; errors make them panic, stopped containers send them to the lounge. Walk around in boss mode and read their monitors.",
   "author": {
     "name": "YOUR_GITHUB_NAME"
   },

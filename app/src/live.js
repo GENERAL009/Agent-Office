@@ -1,7 +1,6 @@
 // Live rejim: Claude Code hook'lari, Docker, terminal va log fayllardan kelgan hodisalarni
 // agent harakatiga aylantiradi.
 import { useOffice } from './store.js';
-import { loungeSpots } from './layout.js';
 
 // Ofis serverning o'zidan ochilsa — o'sha manzil; Vite dev serverdan ochilsa — 4777 port
 export const SERVER = location.port === '5173' || location.protocol === 'file:' ? 'http://127.0.0.1:4777' : location.origin;
@@ -42,8 +41,7 @@ function finishSub(agent) {
   s.log(agent, '✓ Vazifa tugadi');
   s.say(agent, 'Tayyor!', 2500, 'ok');
   s.patch(agent, { task: '' });
-  const i = S().agents[agent].index;
-  setTimeout(() => S().goTo(agent, loungeSpots[i % loungeSpots.length], { state: 'idle' }), 1200);
+  setTimeout(() => S().goToLounge(agent), 1200);
 }
 
 export function handleEvent(e) {
@@ -53,15 +51,20 @@ export function handleEvent(e) {
   const input = e.input ?? e.tool_input ?? {};
 
   switch (hook) {
+    case 'Team': {
+      if (Array.isArray(e.team)) s.setTeam(e.team);
+      break;
+    }
     case 'Snapshot': {
       if (e.project) useOffice.setState({ project: e.project });
+      if (Array.isArray(e.team)) s.setTeam(e.team, { replace: true });
       for (const sv of e.services || []) s.setService(sv);
       for (const l of (e.logs || []).slice(-15)) S().ensureAgent(l.agent) && S().log(l.agent, l.text, l.level, l.source);
       break;
     }
     case 'Service': s.setService(e); break;
     case 'Log': {
-      const id = e.agent || 'devops';
+      const id = norm(e.agent) || 'devops';
       s.ensureAgent(id);
       if (e.level === 'error') S().panic(id, short(e.text, 90), e.source);
       else S().log(id, e.text, e.level, e.source);

@@ -5,7 +5,7 @@
 // Chiqish terminalda odatdagidek ko'rinadi. Buyruq xato bilan tugasa agent
 // dam olish xonasiga ketadi, xato qatorlarida esa vahimaga tushadi.
 import { spawn } from 'node:child_process';
-import { post, levelOf, trim, guessAgent } from './common.mjs';
+import { post, levelOf, trim, resolveAgent, BASE } from './common.mjs';
 
 const argv = process.argv.slice(2);
 const sep = argv.indexOf('--');
@@ -17,7 +17,10 @@ const opts = {};
 for (let i = 0; i < sep; i += 2) opts[argv[i].replace(/^--/, '')] = argv[i + 1];
 const cmd = argv.slice(sep + 1);
 const name = opts.name || `$ ${cmd.join(' ')}`.slice(0, 40);
-const agent = opts.agent || guessAgent(cmd.join(' '));
+// --agent berilmasa: buyruq nomini ofis jamoasidagi rolga bog'laymiz
+let team = [];
+try { team = (await (await fetch(`${BASE}/team`, { signal: AbortSignal.timeout(400) })).json()).team ?? []; } catch {}
+const agent = opts.agent || resolveAgent(cmd.join(' '), {}, team.length ? team : [{ id: 'backend' }, { id: 'frontend' }, { id: 'devops' }]);
 const id = `term:${process.pid}`;
 
 let queue = [];

@@ -2,15 +2,15 @@
 //   "logs": [{ "path": "logs/api.log", "agent": "backend" }]
 import fs from 'node:fs';
 import path from 'node:path';
-import { guessAgent, levelOf, trim } from './common.mjs';
+import { levelOf, trim } from './common.mjs';
 import { RateLimit } from './rate.mjs';
 
-export function startFiles(config, projectDir, emit, status) {
+export function startFiles(config, projectDir, emit, status, resolve) {
   const limit = new RateLimit();
   for (const entry of config.logs || []) {
     const file = path.resolve(projectDir, entry.path);
     const name = entry.name || path.basename(file);
-    const agent = entry.agent || guessAgent(name);
+    const agent = entry.agent || resolve(name);
     const id = `file:${file}`;
     let pos = 0;
     let rest = '';

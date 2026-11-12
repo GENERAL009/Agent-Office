@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, SoftShadows } from '@react-three/drei';
 import Office from './Office.jsx';
@@ -7,6 +7,7 @@ import { useOffice, BAD } from './store.js';
 import { startSim, stopSim } from './sim.js';
 import { startLive, stopLive, handleEvent, SERVER } from './live.js';
 import { startSun } from './sun.js';
+import { BossController, BossHud } from './Boss.jsx';
 
 const CONN = {
   off: ['Ulanmagan', '#8f9bb3'],
@@ -87,6 +88,32 @@ function SunRow() {
   );
 }
 
+function BossRow() {
+  const { boss, setBoss, bossName, setBossName, mode, setTeam, team } = useOffice();
+  const [role, setRole] = useState('');
+  const add = (e) => {
+    e.preventDefault();
+    const id = role.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '');
+    if (id) setTeam([...team, { id }]);
+    setRole('');
+  };
+  return (
+    <div className="boss-row">
+      <button className={`boss-btn ${boss ? 'on' : ''}`} onClick={() => setBoss(!boss)}>
+        👔 {boss ? 'Boshliq rejimidan chiqish' : 'Boshliq rejimi'} <kbd>B</kbd>
+      </button>
+      <div className="boss-name">
+        <input value={bossName} onChange={(e) => setBossName(e.target.value)} placeholder="Ismingiz" maxLength={18} title="Boshliq ismi" />
+        {mode === 'sim' && (
+          <form onSubmit={add} className="add-role">
+            <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="+ xodim (flutter)" maxLength={20} />
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Services() {
   const services = useOffice((s) => s.services);
   const agents = useOffice((s) => s.agents);
@@ -142,6 +169,7 @@ function Panel() {
             <button className="link" onClick={runDemo}>Sinov hodisalari</button>
           </div>
         )}
+        <BossRow />
         <SunRow />
       </div>
 
@@ -208,24 +236,27 @@ function AlertBanner() {
 
 function Lights() {
   const sky = useOffice((s) => s.sky);
+  const W = useOffice((s) => s.layout.W);
+  const half = W / 2 + 4;
   const [dx, dy, dz] = sky.sunDir;
   return (
     <>
       <SoftShadows size={18} samples={10} focus={0.5} />
-      <fog attach="fog" args={[sky.horizon, 45, 85]} />
+      <fog attach="fog" args={[sky.horizon, 45 + W, 90 + W * 2]} />
       <ambientLight intensity={sky.ambient} color={sky.ambientColor} />
       <hemisphereLight args={[sky.hemiTop, sky.hemiBottom, sky.hemiI]} />
       <directionalLight
-        position={[dx * 30, dy * 30, dz * 30]}
+        position={[dx * (half + 10), dy * (half + 10), dz * (half + 10)]}
         intensity={sky.sunI}
         color={sky.sunColor}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
-        shadow-camera-left={-22}
-        shadow-camera-right={22}
-        shadow-camera-top={18}
-        shadow-camera-bottom={-18}
+        shadow-camera-left={-half}
+        shadow-camera-right={half}
+        shadow-camera-top={half}
+        shadow-camera-bottom={-half}
+        shadow-camera-far={half * 4}
       />
       {/* oy nuri */}
       <directionalLight position={[-12, 24, -10]} intensity={sky.moonI} color="#9fb6ff" />
@@ -238,7 +269,14 @@ export default function App() {
   const ids = useOffice((s) => Object.keys(s.agents).join(','));
   const sky = useOffice((s) => s.sky);
 
-  useEffect(() => { startSun(); }, []);
+  useEffect(() => {
+    startSun();
+    // jamoa: loyiha sozlamasi yoki .claude/agents (server ishlayotgan bo'lsa)
+    fetch(`${SERVER}/team`, { signal: AbortSignal.timeout(1500) })
+      .then((r) => r.json())
+      .then((j) => { if (Array.isArray(j.team) && j.team.length) useOffice.getState().setTeam(j.team, { replace: true }); if (j.project) useOffice.setState({ project: j.project }); })
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     if (mode === 'sim') { stopLive(); startSim(); }
     else { stopSim(); startLive(); }
@@ -252,15 +290,17 @@ export default function App() {
           shadows
           dpr={[1, 2]}
           gl={{ alpha: true }}
-          camera={{ position: [0, 27, 22], fov: 42 }}
+          camera={{ position: [0, 27, 22], fov: 42, far: 400 }}
           onPointerMissed={() => { const s = useOffice.getState(); if (s.selected) s.select(s.selected); }}
         >
           <Lights />
           <Office />
           {ids.split(',').map((id) => <Agent key={id} id={id} />)}
-          <OrbitControls target={[0, 0, 0.5]} maxPolarAngle={1.2} minDistance={8} maxDistance={45} enableDamping dampingFactor={0.08} />
+          <OrbitControls makeDefault target={[0, 0, 0.5]} maxPolarAngle={1.2} minDistance={8} maxDistance={45} enableDamping dampingFactor={0.08} />
+          <BossController />
         </Canvas>
         <AlertBanner />
+        <BossHud />
       </div>
       <Panel />
     </div>
