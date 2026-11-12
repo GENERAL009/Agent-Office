@@ -1,0 +1,12 @@
+{
+  "name": "agent-office",
+  "description": "3D office that shows your Claude Code agents, terminals and Docker containers at work",
+  "owner": { "name": "YOUR_GITHUB_NAME" },
+  "plugins": [
+    {
+      "name": "agent-office",
+      "source": "./plugin",
+      "description": "Watch Claude Code agents, Docker containers and terminal logs live in a 3D office"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "agent-office",
+  "displayName": "Agent Office 3D",
+  "version": "1.0.0",
+  "description": "A 3D office in your browser that shows Claude Code sub-agents, Docker containers and terminal logs live. Errors make agents panic, stopped containers send them to the lounge.",
+  "author": {
+    "name": "YOUR_GITHUB_NAME"
+  },
+  "repository": "https://github.com/YOUR_GITHUB_NAME/agent-office",
+  "license": "MIT",
+  "keywords": [
+    "visualization",
+    "3d",
+    "agents",
+    "docker",
+    "monitoring",
+    "hooks"
+  ],
+  "icon": "./.claude-plugin/icon.png"
+}

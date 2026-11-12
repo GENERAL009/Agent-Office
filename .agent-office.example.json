@@ -1,0 +1,7 @@
+{
+  "containers": { "shop-api-1": "backend", "shop-web-1": "frontend" },
+  "ignoreContainers": [],
+  "logs": [{ "path": "logs/api.log", "agent": "backend" }],
+  "allContainers": false,
+  "docker": true
+}
