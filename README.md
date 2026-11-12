@@ -1,186 +1,226 @@
+<div align="center">
+
+<img src="plugin/.claude-plugin/icon.png" width="96" alt="Agent Office 3D icon">
+
 # Agent Office 3D
 
-A Claude Code plugin that turns your session into a living 3D office in the browser.
-Sub-agents walk to their desks when Claude hands them work, every tool call shows up as a
-speech bubble, and the office also watches your **Docker containers**, **terminal commands**
-and **log files**:
+**A Claude Code plugin that gives every sub-agent a desk in a 3D office.**
+Watch them work, see your containers fail, walk in and read their screens.
 
-- an error line or a failed tool call makes the agent **panic** — red status, flashing alarm light, siren on the server rack, an optional beep;
-- a container that stops, crash-loops or turns `unhealthy` sends its agent to the **lounge** until it is back up;
-- `/agent-office:setup` reads your project and builds a **team with its own rooms** — a Flutter room with a device lab, a DevOps room with a server rack, a QA room with a bug board;
-- **boss mode**: walk through the office in third person, enter any room and read an agent's terminal on its monitor;
-- the sky, sunlight and office lamps follow the **real sun** at your location.
+![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-e0a03a)
+![Node 18+](https://img.shields.io/badge/node-18%2B-3b82c4)
+![Windows · macOS · Linux](https://img.shields.io/badge/Windows%20·%20macOS%20·%20Linux-supported-2f9e64)
+![License MIT](https://img.shields.io/badge/license-MIT-7c4dff)
 
-**Documentation site:** `docs/index.html` (English / O‘zbekcha). Turn on GitHub Pages
-(Settings → Pages → Deploy from branch → `main` / `/docs`) to publish it.
+[Documentation](https://YOUR_GITHUB_NAME.github.io/agent-office/) · [Install](#install) · [O‘zbekcha](#ozbekcha)
 
-![Office](docs/office.png)
-![Incident](docs/incident.png)
-![Boss mode](docs/terminal.png)
+<img src="docs/office.png" alt="Top view of the 3D office with Manager, Flutter, Backend, QA, DevOps and ML rooms" width="100%">
+
+</div>
+
+## What it does
+
+- **Every sub-agent gets a room.** When Claude delegates work, the agent walks to its desk and every `Edit`, `Bash` or `Read` shows up as a speech bubble.
+- **Your project decides the team.** `/agent-office:setup` reads the repository and creates one agent per area — Flutter, backend, DevOps, QA… The building grows a furnished room for each one.
+- **Errors make agents panic.** A failed tool call, a stack trace in a container log or an error line in your terminal turns the agent red, flashes an alarm and spins the siren on the server rack.
+- **Stopped containers send agents to the lounge.** When a Docker container exits, crash-loops or turns unhealthy, its agent sits on the sofa until the service is back.
+- **Boss mode.** Press <kbd>B</kbd>, walk through the office in third person, stand at a desk and press <kbd>E</kbd> to read that agent's terminal.
+- **The real sky.** Sunlight, sky colour and office lamps follow the actual sun at your location.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/incident.png" alt="Agents in the lounge with red alerts while their containers are down"><br><sub>Containers down: agents wait in the lounge</sub></td>
+<td width="50%"><img src="docs/terminal.png" alt="Boss mode with an agent's terminal open"><br><sub>Boss mode: reading the backend agent's terminal</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/flutter-room.png" alt="Inside the Flutter room with a device lab"><br><sub>The Flutter room, built by <code>/agent-office:setup</code></sub></td>
+<td width="50%"><img src="docs/sunset.png" alt="The office after sunset with lamps on"><br><sub>Twenty minutes after the real sunset</sub></td>
+</tr>
+</table>
 
 ## Install
 
-```bash
-# inside Claude Code (2.1.275+)
-/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office
+You need [Claude Code](https://claude.com/claude-code) and **Node.js 18 or newer**. Nothing else — the server uses only Node's standard library and the 3D interface ships prebuilt.
 
-# or in two steps
-/plugin marketplace add YOUR_GITHUB_NAME/agent-office
-/plugin install agent-office@agent-office
+Inside Claude Code:
+
+```
+/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office
 ```
 
-or from your shell:
+Or from your terminal:
 
 ```bash
 claude plugin marketplace add YOUR_GITHUB_NAME/agent-office
 claude plugin install agent-office@agent-office
 ```
 
-Requires Node.js 18+. No npm install is needed for the plugin: the server uses only Node's
-standard library and the 3D UI ships prebuilt in `plugin/ui`.
+## Quick start
 
-## Use
+1. Open Claude Code in your project:
+   ```bash
+   cd my-project
+   claude
+   ```
+   The office server starts on its own when the session starts.
+2. Run `/agent-office:office` — it prints the address (default `http://127.0.0.1:4777`). Open it in your browser and switch the panel to **Live**.
+3. Run `/agent-office:setup` — Claude reads your project, writes the agents and the office builds their rooms.
+4. Give Claude work as usual, for example *"ask the flutter agent to build the login screen"*, and watch the agent walk to its desk.
 
-The office server starts by itself when a Claude Code session starts. Then:
+### Try it without Claude
+
+```bash
+git clone https://github.com/YOUR_GITHUB_NAME/agent-office
+cd agent-office
+node plugin/office/ctl.mjs start
+```
+
+Open `http://127.0.0.1:4777`. **Simulation** mode runs a pretend team with staged errors and container crashes. Type `flutter` into the "+ xodim" field to watch a new room being built. Stop it with `node plugin/office/ctl.mjs stop`.
+
+## Commands
 
 | Command | What it does |
 |---|---|
-| `/agent-office:office` | prints the office URL (default `http://127.0.0.1:4777`), starts the server if needed |
-| `/agent-office:setup` | reads the project, writes `.claude/agents/*.md` and `.agent-office.json`, the office builds the rooms |
-| `/agent-office:office-stop` | stops the server |
-| `/agent-office:office-watch backend npm run dev` | runs a command and streams its output to the backend agent |
+| `/agent-office:office` | Prints the office address, starting the server if needed |
+| `/agent-office:setup` | Reads the project, writes `.claude/agents/*.md` and `.agent-office.json`, builds the rooms |
+| `/agent-office:office-watch <agent> <command…>` | Runs a command and streams its output to an agent |
+| `/agent-office:office-stop` | Stops the server |
 
-Open the URL and switch the panel to **Live**. **Simulation** mode needs nothing and shows
-every feature, including staged errors and container crashes.
-
-### Your team, your rooms
-
-The office builds one room per role. The team comes from, in order:
-
-1. `team` in `.agent-office.json`,
-2. the project's own sub-agents in `.claude/agents/*.md`,
-3. the three agents this plugin ships: `backend`, `frontend`, `devops`.
-
-Run `/agent-office:setup` and Claude scans the repository (`pubspec.yaml`, `package.json`,
-`go.mod`, `pyproject.toml`, Dockerfiles, compose services, CI, test folders), then writes an
-agent per area with the real paths, stack and test commands. The running office notices the new
-files within two seconds: the building grows to the right and each new hire walks in through the
-front door. A sub-agent type Claude launches that the office has never seen also gets a room.
-
-Room furniture follows the role: Flutter / mobile → device lab and a phone display, DevOps →
-server rack and monitoring wall, QA → bug board, ML / data → GPU rack and charts, frontend /
-design → easel, docs → bookshelf.
-
-### Boss mode
-
-Press **B** (or the button in the panel). You appear next to the entrance and the camera follows
-you from behind.
+## Boss mode
 
 | Key | Action |
 |---|---|
-| `W A S D` / arrows | walk (relative to the camera) |
-| `Shift` | run |
-| mouse drag / wheel | turn and zoom the camera |
-| `E` | open the monitor you are standing at |
-| `Esc` | close the monitor, then leave boss mode |
+| <kbd>B</kbd> | Enter boss mode (you appear next to the entrance) |
+| <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrows | Walk, relative to the camera |
+| <kbd>Shift</kbd> | Run |
+| Mouse drag / wheel | Turn and zoom the camera |
+| <kbd>E</kbd> | Open the monitor you're standing at |
+| <kbd>Esc</kbd> | Close the monitor, then leave boss mode |
 
-Every desk's left monitor shows its agent's latest log lines, and turns red when the agent
-panics. `E` at a desk opens the full terminal; at the DevOps monitoring wall you get every
-service; at the meeting-room screen, the whole event feed. Agents turn and greet you as you
-pass — the ones in trouble tell you what broke.
+Every desk's monitor shows its agent's latest log lines and turns red when the agent panics. The DevOps monitoring wall lists every service; the meeting-room screen shows the whole event feed. Agents greet you as you pass — the ones in trouble tell you what broke. Boss mode needs a keyboard.
 
-### Terminal commands
+## What the office watches
 
-Run anything through the wrapper; output still appears in your terminal as usual:
+### Claude Code
 
-```bash
-node ~/.claude/plugins/…/agent-office/office/run.mjs --agent backend -- npm run dev
-```
-
-(`/agent-office:office-watch` does this for you.) Lines that look like errors make the agent
-panic; a non-zero exit sends it to the lounge.
+Hooks report prompts, tool calls and sub-agents: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `Stop`, `StopFailure`, `SessionEnd`. The hook script waits at most about a second and always exits successfully, so Claude is never slowed down — even when the office is closed.
 
 ### Docker
 
-If `docker` is on your PATH, every container that is running while the office is open is
-tracked automatically. A container is mapped to an agent by `containers` in the config (a compose
-service name also matches `project-service-1`), then by a role name inside the container name,
-then by kind (`api`, `db`, `worker` → backend; `web`, `next` → frontend; `flutter`, `mobile` →
-mobile; `nginx`, `redis`, `grafana` … → devops). Logs are followed with `docker logs -f`.
+If `docker` is on your `PATH`, every container that runs while the office is open is tracked and its logs are followed. A container belongs to an agent by, in order:
 
-### Configuration (optional)
+1. `containers` in `.agent-office.json` (a compose service name like `api` also matches `shop-api-1`)
+2. a role name inside the container name (`shop-flutter-web` → `flutter`)
+3. its kind (`api`, `db`, `worker` → backend · `web`, `next` → frontend · `nginx`, `redis`, `grafana` → devops)
 
-Put `.agent-office.json` in your project root (`/agent-office:setup` writes it for you):
+No Docker? Everything else keeps working.
+
+### Terminal commands and log files
+
+Run a command through the wrapper — output still appears in your terminal:
+
+```bash
+node <plugin folder>/office/run.mjs --agent flutter -- flutter run
+```
+
+`/agent-office:office-watch flutter flutter run` does the same from inside Claude. Error lines make the agent panic; a non-zero exit sends it to the lounge. Log files are listed in `.agent-office.json`.
+
+## Configuration
+
+`.agent-office.json` in your project root is optional — `/agent-office:setup` writes it for you.
 
 ```json
 {
-  "team": [{ "id": "flutter", "name": "Flutter" }, { "id": "backend" }, { "id": "devops" }],
-  "containers": { "api": "backend", "shop-web-1": "frontend" },
-  "ignoreContainers": ["buildx_buildkit_default"],
+  "team": [
+    { "id": "flutter", "name": "Flutter" },
+    { "id": "backend" },
+    { "id": "devops" }
+  ],
+  "containers": { "api": "backend", "redis": "devops" },
+  "ignoreContainers": [],
   "logs": [{ "path": "logs/api.log", "agent": "backend" }],
   "allContainers": false,
   "docker": true
 }
 ```
 
+The team comes from `team` in this file, otherwise from your project's `.claude/agents/*.md`, otherwise the three agents the plugin ships (`backend`, `frontend`, `devops`). Changes are picked up within two seconds: new roles get a room and walk in through the front door.
+
 | Environment variable | Default | Meaning |
 |---|---|---|
-| `AGENT_OFFICE_PORT` | `4777` | server port |
-| `AGENT_OFFICE_AUTOSTART` | `1` | set to `0` to stop the SessionStart hook from starting the server |
-| `AGENT_OFFICE_DEBUG` | — | print every event the server receives |
+| `AGENT_OFFICE_PORT` | `4777` | Server port |
+| `AGENT_OFFICE_AUTOSTART` | `1` | Set to `0` to stop the server starting with each session |
+| `AGENT_OFFICE_DEBUG` | — | Print every event the server receives |
 
-## Real sun
+### Location and the sky
 
-The office asks the browser for your location (GPS). If that is denied it falls back to IP
-geolocation ([ipapi.co](https://ipapi.co), [ipwho.is](https://ipwho.is)). Sunrise and sunset
-times come from [sunrise-sunset.org](https://sunrise-sunset.org/api); the sun's height for
-the sky colour and the light direction is computed locally every 30 seconds. Use **Day** /
-**Night** to force a look, or drag the time slider to preview the evening.
+The office asks the browser for your location; if you decline it uses your IP's city ([ipapi.co](https://ipapi.co), [ipwho.is](https://ipwho.is)). Sunrise and sunset come from [sunrise-sunset.org](https://sunrise-sunset.org/api), and the sun's height is computed locally every 30 seconds. Pick **Kun** (day) or **Tun** (night) in the panel and no location is used at all. Nothing else leaves your machine.
+
+## Troubleshooting
+
+**The panel says "Server topilmadi" (server not found).**
+Run `/agent-office:office` in Claude, or `node plugin/office/ctl.mjs start` in the repository folder. Server output is in your temp folder: `agent-office-4777/server.log`.
+
+**`Cannot find module …ctl.mjs`.**
+Check the path is relative to where you are. Inside the repository folder it's `node plugin/office/ctl.mjs start` (on Windows `node plugin\office\ctl.mjs start`).
+
+**A console window flashes every few seconds on Windows.**
+Fixed in 1.1.1. Stop the old server (`node plugin\office\ctl.mjs stop`), then reinstall the plugin:
+```
+claude plugin uninstall agent-office@agent-office
+claude plugin marketplace update agent-office
+claude plugin install agent-office@agent-office
+```
+
+**Port 4777 is taken.**
+Set `AGENT_OFFICE_PORT` to another port before starting Claude.
+
+**A container is mapped to the wrong agent.**
+Add it to `containers` in `.agent-office.json`.
 
 ## How it works
 
 ```
-Claude Code hooks ─┐
-docker ps / logs ──┼─> plugin/office/server.mjs (127.0.0.1:4777) ──SSE──> 3D office (plugin/ui)
-run.mjs / log files┘
+Claude Code hooks ──┐
+docker ps / logs ───┼──> plugin/office/server.mjs (127.0.0.1:4777) ──SSE──> 3D office in your browser
+run.mjs, log files ─┘
 ```
-
-Hook events used: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
-`PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `Stop`, `StopFailure`, `SessionEnd`.
-The hook script never waits more than about a second and always exits 0, so Claude is never
-slowed down when the office is closed.
-
-## Develop
 
 ```
 app/      React + Three.js (React Three Fiber) source of the office
-plugin/   the Claude Code plugin (hooks, agents, commands, server, built UI)
+plugin/   the Claude Code plugin: hooks, agents, commands, server and the built UI
+docs/     documentation site (GitHub Pages) and screenshots
 ```
+
+## Develop
 
 ```bash
-cd app && npm install
-npm run dev        # UI with hot reload at :5173, talks to the server at :4777
-npm run build      # writes the production UI to plugin/ui — commit it
-claude plugin validate ./plugin
+cd app
+npm install
+npm run dev                         # interface with hot reload at http://localhost:5173
+node ../plugin/office/server.mjs    # in a second terminal
+npm run build                       # writes the production interface to plugin/ui — commit it
+claude plugin validate ../plugin
 ```
 
-Try the plugin locally without a marketplace: `claude --plugin-dir ./plugin`.
+Load your working copy without a marketplace: `claude --plugin-dir ./plugin`.
+
+To publish the documentation site, enable GitHub Pages: **Settings → Pages → Deploy from a branch → `main` / `/docs`**.
 
 ---
 
-## O‘zbekcha qisqacha
+## O‘zbekcha
 
-Claude Code uchun plugin: agentlaringiz, Docker konteynerlari va terminal loglari brauzerdagi
-3D ofisda ko‘rinadi. Xato chiqsa agent vahimaga tushadi (qizil holat, chiroq, signal),
-konteyner to‘xtasa agent dam olish xonasiga ketadi. Osmon va yorug‘lik joylashuvingizdagi
-haqiqiy quyoshga qarab o‘zgaradi.
+Claude Code uchun plugin: har bir sub-agentning 3D ofisda o‘z stoli va xonasi bor.
 
-- `/agent-office:setup` — Claude loyihangizni o‘qib, har bir yo‘nalish uchun agent yaratadi; ofis har biriga alohida xona quradi (Flutter, Backend, DevOps, QA …).
-- **B** — boshliq rejimi: WASD bilan yurasiz, xonalarga kirasiz, stol yonida **E** bosib agent terminalini o‘qiysiz.
-
-O‘rnatish: `/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office`.
-Ofisni ochish: `/agent-office:office`. To‘liq hujjat: `docs/index.html`.
+- **O‘rnatish:** Claude Code ichida `/plugin install agent-office --marketplace YOUR_GITHUB_NAME/agent-office`. Faqat Node.js 18+ kerak.
+- **Ochish:** `/agent-office:office` — manzilni beradi (`http://127.0.0.1:4777`), brauzerda oching va panelda **Live** ni tanlang.
+- **Jamoa:** `/agent-office:setup` — Claude loyihangizni o‘qib, har bir yo‘nalish uchun agent yaratadi, ofis har biriga xona quradi.
+- **Nosozliklar:** xato chiqsa agent vahimaga tushadi (qizil holat, chiroq, sirena), Docker konteyneri to‘xtasa agent dam olish xonasiga ketadi.
+- **Boshliq rejimi:** <kbd>B</kbd> — WASD bilan yurasiz, stol yonida <kbd>E</kbd> bosib agent terminalini o‘qiysiz.
+- **Osmon:** joylashuvingizdagi haqiqiy quyoshga qarab o‘zgaradi; panelda Kun yoki Tun tanlansa, joylashuv ishlatilmaydi.
+- **Claude’siz sinash:** `node plugin/office/ctl.mjs start`, keyin brauzerda Simulyatsiya rejimi.
 
 ## License
 
-MIT
+[MIT](LICENSE)
