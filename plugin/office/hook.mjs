@@ -2,7 +2,8 @@
 // Claude Code har bir hodisada shu skriptni chaqiradi (stdin'da JSON).
 // Hodisani ofis serveriga yuboradi. Hech qachon xato bilan chiqmaydi va
 // ~1 soniyadan ortiq kutmaydi, shuning uchun Claude sekinlashmaydi.
-import { post, trim, levelOf } from './common.mjs';
+import { post, trim } from './common.mjs';
+import { severityOf, legacyLevel, maxSev } from './severity.mjs';
 import { ensureServer } from './ctl.mjs';
 
 const slimInput = (input) => {
@@ -48,7 +49,18 @@ process.stdin.on('end', async () => {
       stderr: e.tool_name === 'Bash' ? bashTrouble(e.tool_response) : undefined,
       cwd: e.cwd,
     };
-    if (ev.stderr) ev.stderr_level = levelOf(ev.stderr);
+    if (ev.stderr) {
+      const s = severityOf(ev.stderr) ?? 'info';
+      ev.stderr_severity = s;
+      ev.stderr_level = legacyLevel(s);
+    }
+    if (hook === 'PostToolUseFailure') {
+      // muvaffaqiyatsiz tool → o'rtacha; Bash buyrug'i non-zero exit → katta; xato matni yuqoriroq bo'lsa — o'sha
+      const base = e.tool_name === 'Bash' && /^Exit code [1-9]/.test(String(e.error || '')) ? 'major' : 'moderate';
+      const fromText = severityOf(String(e.error || '').split('\n').slice(1).join('\n')) ?? 'info';
+      ev.severity = maxSev(base, fromText);
+    }
+    if (hook === 'StopFailure') ev.severity = 'major';
     await post(ev);
   } catch {} // ofis yopiq yoki kirish buzuq: Claude ishlayveradi
   process.exit(0);

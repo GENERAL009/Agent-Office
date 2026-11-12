@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Html, RoundedBox } from '@react-three/drei';
 import { useOffice } from './store.js';
+import { SEV, visibleSev } from './severity.js';
 import Decor from './Details.jsx';
 import Windows from './Windows.jsx';
 
@@ -45,17 +46,18 @@ function useWoodTexture(W, H) {
 }
 
 // Monitor ekranidagi terminal: agentning oxirgi loglari
-function useTerminal(agent, enabled) {
+function useTerminal(agent, enabled, sevFill) {
   const canvas = useMemo(() => { const c = document.createElement('canvas'); c.width = 512; c.height = 300; return c; }, []);
   const tex = useMemo(() => { const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }, [canvas]);
   const log = agent?.log;
   const panic = agent?.state === 'panic';
   useEffect(() => {
+    const LINE = { info: '#9fe2bf', minor: '#FACC15', moderate: '#FB923C', major: '#F87171', critical: '#FCA5A5' };
     if (!enabled) return;
     const g = canvas.getContext('2d');
     g.fillStyle = panic ? '#2a0507' : '#0b1017';
     g.fillRect(0, 0, 512, 300);
-    g.fillStyle = panic ? '#ff3b47' : agent?.color ?? '#4cc38a';
+    g.fillStyle = sevFill ?? (panic ? '#ff3b47' : agent?.color ?? '#4cc38a');
     g.fillRect(0, 0, 512, 26);
     g.fillStyle = '#0b1017';
     g.font = '600 17px "JetBrains Mono", ui-monospace, monospace';
@@ -63,13 +65,13 @@ function useTerminal(agent, enabled) {
     g.font = '15px "JetBrains Mono", ui-monospace, monospace';
     const lines = (log ?? []).slice(0, 13).reverse();
     lines.forEach((l, i) => {
-      g.fillStyle = l.level === 'error' ? '#ff6b74' : l.level === 'warn' ? '#f6bd73' : '#9fe2bf';
-      const txt = `${l.time.slice(0, 5)} ${l.source ? `[${l.source}] ` : ''}${l.text}`;
+      g.fillStyle = LINE[l.severity ?? 'info'] ?? '#9fe2bf';
+      const txt = `${l.time.slice(0, 5)} ${l.source ? `[${l.source}] ` : ''}${l.text}${l.count > 1 ? ` ×${l.count}` : ''}`;
       g.fillText(txt.length > 54 ? txt.slice(0, 53) + '…' : txt, 10, 46 + i * 19);
     });
     if (!lines.length) { g.fillStyle = '#5f6778'; g.fillText('$ _', 10, 50); }
     tex.needsUpdate = true;
-  }, [log, panic, enabled, agent?.color, agent?.name, canvas, tex]);
+  }, [log, panic, enabled, agent?.color, agent?.name, canvas, tex, sevFill]);
   return tex;
 }
 
@@ -187,11 +189,16 @@ export function OfficeChair({ color = C.chair }) {
 function Desk({ L, id, desk, seat }) {
   const owner = useOffice((s) => Object.values(s.agents).find((a) => a.deskId === id));
   const night = useOffice((s) => s.sky.lamps > 0.5);
+  const settings = useOffice((s) => s.settings);
+  const vis = owner ? visibleSev(owner.state === 'panic' ? (owner.alarm?.severity ?? owner.sev) : owner.sev, settings) : null;
+  const sevFill = vis ? SEV[vis].fill : null;
   const on = !!owner && (owner.state === 'working' || owner.state === 'panic');
-  const term = useTerminal(owner, !!owner);
+  const term = useTerminal(owner, !!owner, sevFill);
   const [x, z] = L.toWorld(desk);
   const [sx, sz] = L.toWorld(seat);
-  const accent = owner?.state === 'panic' ? '#ff2d3a' : owner?.color ?? '#7a8494';
+  const accent = sevFill ?? (owner?.state === 'panic' ? '#ff2d3a' : owner?.color ?? '#7a8494');
+  const lamp = sevFill ?? '#ffd9a0';
+  const lampOn = night || !!sevFill;
   return (
     <group>
       <group position={[x, 0, z]}>
@@ -207,7 +214,7 @@ function Desk({ L, id, desk, seat }) {
           <mesh position-y={0.2}><cylinderGeometry args={[0.012, 0.012, 0.4, 6]} /><meshStandardMaterial color={C.metal} /></mesh>
           <mesh position={[0.08, 0.4, 0.05]} rotation-z={-0.5}>
             <coneGeometry args={[0.07, 0.1, 16, 1, true]} />
-            <meshStandardMaterial color={C.metal} emissive={night ? '#ffd9a0' : '#000'} emissiveIntensity={night ? 1.5 : 0} side={THREE.DoubleSide} />
+            <meshStandardMaterial color={C.metal} emissive={lampOn ? lamp : '#000'} emissiveIntensity={lampOn ? (sevFill ? 2.2 : 1.5) : 0} side={THREE.DoubleSide} />
           </mesh>
         </group>
         <mesh position={[0.68, 0.82, 0.05]}><cylinderGeometry args={[0.04, 0.035, 0.09, 12]} /><meshStandardMaterial color={accent} /></mesh>

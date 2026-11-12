@@ -22,14 +22,14 @@ Watch them work, see your containers fail, walk in and read their screens.
 
 - **Every sub-agent gets a room.** When Claude delegates work, the agent walks to its desk and every `Edit`, `Bash` or `Read` shows up as a speech bubble.
 - **Your project decides the team.** `/agent-office:setup` reads the repository and creates one agent per area — Flutter, backend, DevOps, QA… The building grows a furnished room for each one.
-- **Errors make agents panic.** A failed tool call, a stack trace in a container log or an error line in your terminal turns the agent red, flashes an alarm and spins the siren on the server rack.
+- **Errors have a severity.** Every log line, failed tool call and container state is graded *minor*, *moderate*, *major* or *critical*. Agents, desks, monitors and lists take that colour, and from the level you choose the agent panics — red alarm light, siren on the server rack, a trip to the lounge. A line that repeats is grouped into one entry with a counter and raised one level.
 - **Stopped containers send agents to the lounge.** When a Docker container exits, crash-loops or turns unhealthy, its agent sits on the sofa until the service is back.
 - **Boss mode.** Press <kbd>B</kbd>, walk through the office in third person, stand at a desk and press <kbd>E</kbd> to read that agent's terminal.
 - **The real sky.** Sunlight, sky colour and office lamps follow the actual sun at your location.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/incident.png" alt="Agents in the lounge with red alerts while their containers are down"><br><sub>Containers down: agents wait in the lounge</sub></td>
+<td width="50%"><img src="docs/severity.png" alt="Agents coloured by error severity, with the Xatolar settings open"><br><sub>Error severity: settings and colours by level</sub></td>
 <td width="50%"><img src="docs/terminal.png" alt="Boss mode with an agent's terminal open"><br><sub>Boss mode: reading the backend agent's terminal</sub></td>
 </tr>
 <tr>
@@ -124,7 +124,53 @@ Run a command through the wrapper — output still appears in your terminal:
 node <plugin folder>/office/run.mjs --agent flutter -- flutter run
 ```
 
-`/agent-office:office-watch flutter flutter run` does the same from inside Claude. Error lines make the agent panic; a non-zero exit sends it to the lounge. Log files are listed in `.agent-office.json`.
+`/agent-office:office-watch flutter flutter run` does the same from inside Claude. Each line is graded by [severity](#error-severity); a non-zero exit is *major*. Log files are listed in `.agent-office.json`.
+
+## Error severity
+
+The server grades every line before the office sees it. The rules are in `plugin/office/severity.mjs` and covered by `node --test plugin/office/severity.test.mjs`.
+
+| Level | Colour | When |
+|---|---|---|
+| Info | ![](https://img.shields.io/badge/-%20-64748B) grey | ordinary log lines, 2xx / 3xx / 404 access log |
+| Minor | ![](https://img.shields.io/badge/-%20-EAB308) yellow `#EAB308` | warning, deprecated, retrying, timeout, 4xx other than 404 |
+| Moderate | ![](https://img.shields.io/badge/-%20-F97316) orange `#F97316` | one ERROR line, a caught exception, a failed tool call, one 5xx |
+| Major | ![](https://img.shields.io/badge/-%20-DC2626) red `#DC2626` | Traceback, unhandled exception, `SomethingError:` / `SomethingException:`, container `unhealthy`, a command exiting non-zero |
+| Critical | ![](https://img.shields.io/badge/-%20-7F1D1D) blood red `#7F1D1D` | FATAL, PANIC, CRITICAL, OOMKilled, segfault, container exited with an error or restarting 3+ times in 3 minutes, database auth errors (`password authentication failed`, `role … does not exist`), `ECONNREFUSED` to a database |
+
+- **Repeats.** The same line (timestamps, numbers and ids removed) seen 5 times within 2 minutes moves up one level. It stays one grouped entry with a counter, so a Postgres FATAL every 10 seconds shows as one critical row `×12`, not a flood.
+- **Recovery.** A container that comes back `up` clears its problem. A log problem that has not repeated for 2 minutes steps down one level every 20 seconds until it is gone, and the agent returns to work.
+- **"0 errors", "no errors found", `error_handler`** and similar are not errors.
+
+### Settings
+
+Open **Xatolar** in the office panel:
+
+| Setting | Options | Default |
+|---|---|---|
+| Panic threshold (*Panika chegarasi*) | Minor · Moderate · Major · Critical — from this level the agent panics: red light, siren, lounge | Major |
+| Colour mode (*Rang rejimi*) | **By status** — bubbles, desk lamp, monitor, Services and Events in the level's colour · **Red only** — like before: red from the threshold, nothing below | By status |
+| Sound (*Ovoz*) | Off · Major · Critical | Critical |
+| Events feed (*Hodisalar lentasi*) | All · Minor+ · Moderate+ · Major+ — hide lower levels | All |
+
+Your choice is saved in this browser. A project can set its own defaults and rules in `.agent-office.json`:
+
+```json
+{
+  "severity": {
+    "panicAt": "major",
+    "sound": "critical",
+    "colorMode": "status",
+    "feedMin": "minor",
+    "rules": {
+      "critical": ["payment gateway down"],
+      "ignore": ["/api/extension/commands/next"]
+    }
+  }
+}
+```
+
+`rules` takes regular expressions per level (`critical`, `major`, `moderate`, `minor`, `info`) and `ignore` for lines the office should never show. Without a `severity` key everything works with the defaults above. The top of the panel counts active problems by level: **● 2 critical ● 1 major ● 4 minor**.
 
 ## Configuration
 
@@ -220,7 +266,7 @@ Claude Code uchun plugin: har bir sub-agentning 3D ofisda o‘z stoli va xonasi 
 - **Ochish:** `/agent-office:office` — ofisni brauzerda o‘zi ochadi, panelda **Live** ni tanlang. Port band bo‘lsa, server o‘zi keyingi bo‘sh portni oladi.
 - **Ochilmasa:** `/agent-office:doctor` — sababini (port, manzil, server logi) aniqlab, nima qilishni aytadi.
 - **Jamoa:** `/agent-office:setup` — Claude loyihangizni o‘qib, har bir yo‘nalish uchun agent yaratadi, ofis har biriga xona quradi.
-- **Nosozliklar:** xato chiqsa agent vahimaga tushadi (qizil holat, chiroq, sirena), Docker konteyneri to‘xtasa agent dam olish xonasiga ketadi.
+- **Xatolik darajalari:** har bir xato *mayda* (sariq), *o‘rtacha* (olovrang), *katta* (qizil) yoki *kritik* (qonli qizil) deb baholanadi. Panelning **Xatolar** bo‘limida qaysi darajadan agent panika qilishi (qizil chiroq, sirena, dam olish xonasi), rang rejimi, ovoz va lentada nimani yashirish tanlanadi. Takrorlangan xato bitta qatorga guruhlanadi (×12) va bir daraja ko‘tariladi; 2 daqiqa takrorlanmasa asta pasayadi.
 - **Boshliq rejimi:** <kbd>B</kbd> — WASD bilan yurasiz, stol yonida <kbd>E</kbd> bosib agent terminalini o‘qiysiz.
 - **Osmon:** joylashuvingizdagi haqiqiy quyoshga qarab o‘zgaradi; panelda Kun yoki Tun tanlansa, joylashuv ishlatilmaydi.
 - **Claude’siz sinash:** `node plugin/office/ctl.mjs start`, keyin brauzerda Simulyatsiya rejimi.

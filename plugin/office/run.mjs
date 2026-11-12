@@ -5,7 +5,7 @@
 // Chiqish terminalda odatdagidek ko'rinadi. Buyruq xato bilan tugasa agent
 // dam olish xonasiga ketadi, xato qatorlarida esa vahimaga tushadi.
 import { spawn } from 'node:child_process';
-import { post, levelOf, trim, resolveAgent, findServer } from './common.mjs';
+import { post, trim, resolveAgent, findServer, loadConfig, makeClassifier } from './common.mjs';
 
 const argv = process.argv.slice(2);
 const sep = argv.indexOf('--');
@@ -27,10 +27,11 @@ let queue = [];
 const flush = () => { if (queue.length) { const q = queue; queue = []; post(q, 800); } };
 setInterval(flush, 250).unref();
 
+const sev = makeClassifier(loadConfig(process.cwd()));
 let perSec = 0;
 setInterval(() => { perSec = 0; }, 1000).unref();
 
-post({ hook: 'Service', id, name, kind: 'terminal', agent, state: 'up', detail: cmd.join(' ') });
+post({ hook: 'Service', id, name, kind: 'terminal', agent, state: 'up', severity: 'info', detail: cmd.join(' ') });
 
 const child = spawn(cmd[0], cmd.slice(1), { stdio: ['inherit', 'pipe', 'pipe'], shell: process.platform === 'win32', windowsHide: true });
 let rest = '';
@@ -42,9 +43,10 @@ const pipe = (out) => (buf) => {
     // eslint-disable-next-line no-control-regex
     const text = line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').trim();
     if (!text) continue;
-    const level = levelOf(text);
-    if (level !== 'error' && ++perSec > 4) continue;
-    queue.push({ hook: 'Log', source: name, kind: 'terminal', agent, level, text: trim(text, 280) });
+    const c = sev.line(name, text);
+    if (!c) continue;
+    if (c.level !== 'error' && ++perSec > 4) continue;
+    queue.push({ hook: 'Log', source: name, kind: 'terminal', agent, level: c.level, severity: c.severity, key: c.key, count: c.count, text: trim(text, 280) });
   }
 };
 child.stdout.on('data', pipe(process.stdout));
@@ -54,7 +56,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
 
 child.on('error', async (e) => {
   console.error(e.message);
-  await post({ hook: 'Service', id, name, kind: 'terminal', agent, state: 'down', detail: e.message });
+  await post({ hook: 'Service', id, name, kind: 'terminal', agent, state: 'down', severity: 'major', detail: e.message });
   process.exit(127);
 });
 child.on('exit', async (code, signal) => {
@@ -62,6 +64,7 @@ child.on('exit', async (code, signal) => {
   const ok = code === 0 || signal === 'SIGINT' || signal === 'SIGTERM';
   await post({
     hook: 'Service', id, name, kind: 'terminal', agent, state: ok ? 'stopped' : 'down',
+    severity: ok ? 'info' : 'major', // buyruq non-zero exit → katta
     detail: signal ? `signal ${signal}` : `exit code ${code}`,
   }, 800);
   process.exit(code ?? 1);

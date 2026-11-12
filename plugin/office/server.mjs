@@ -8,7 +8,8 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { UI_DIR, loadConfig, resolveAgent } from './common.mjs';
+import { UI_DIR, loadConfig, resolveAgent, makeClassifier } from './common.mjs';
+import { settingsFrom } from './severity.mjs';
 import { PORTS, probe, writeState, clearState } from './net.mjs';
 import { startDocker } from './watch-docker.mjs';
 import { startFiles } from './watch-files.mjs';
@@ -17,6 +18,7 @@ import { computeTeam, signature } from './team.mjs';
 const project = process.env.AGENT_OFFICE_PROJECT || process.cwd();
 const config = loadConfig(project); // o'zgarganda joyida yangilanadi
 let team = computeTeam(project, config);
+const sev = makeClassifier(config); // xatolik darajalari va takrorlanish
 const clients = new Set();
 const services = new Map(); // id -> oxirgi Service hodisasi
 const recentLogs = []; // yangi ulangan brauzer uchun oxirgi loglar
@@ -73,14 +75,14 @@ function handler(req, res) {
 
   if (req.url === '/events') {
     res.writeHead(200, { ...CORS, 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-    res.write(`data: ${JSON.stringify({ hook: 'Snapshot', services: [...services.values()], logs: recentLogs, project: path.basename(project), team })}\n\n`);
+    res.write(`data: ${JSON.stringify({ hook: 'Snapshot', services: [...services.values()], logs: recentLogs, project: path.basename(project), team, severity: settingsFrom(config) })}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));
     return;
   }
 
   if (req.url === '/team') {
-    res.writeHead(200, { ...CORS, 'content-type': 'application/json' }).end(JSON.stringify({ team, project: path.basename(project) }));
+    res.writeHead(200, { ...CORS, 'content-type': 'application/json' }).end(JSON.stringify({ team, project: path.basename(project), severity: settingsFrom(config) }));
     return;
   }
 
@@ -154,8 +156,8 @@ if (result.tried.length) console.log(`Skipped: ${result.tried.join(', ')}`);
 console.log(`Agent Office: ${listening.urls[0]}  (also ${listening.urls.slice(1).join(', ')})  project: ${project}`);
 {
   const resolve = (name) => resolveAgent(name, config, team);
-  if (config.docker !== false) startDocker(config, broadcast, status, resolve);
-  startFiles(config, project, broadcast, status, resolve);
+  if (config.docker !== false) startDocker(config, broadcast, status, resolve, sev);
+  startFiles(config, project, broadcast, status, resolve, sev);
 }
 
 setInterval(() => { for (const c of clients) c.write(': ping\n\n'); }, 15_000);
@@ -167,6 +169,8 @@ setInterval(() => {
   if (now === sig) return;
   sig = now;
   Object.assign(config, loadConfig(project));
+  sev.reload(config);
+  broadcast({ hook: 'Settings', severity: settingsFrom(config) });
   const next = computeTeam(project, config);
   if (JSON.stringify(next) !== JSON.stringify(team)) {
     team = next;

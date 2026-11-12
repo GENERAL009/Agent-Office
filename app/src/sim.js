@@ -1,6 +1,7 @@
 // Simulyatsiya rejimi: orqasida Claude yo'q. Jamoadagi har bir rol o'z xonasida ishlaydi,
 // vaqti-vaqti bilan xato va konteyner yiqilishi bo'ladi.
 import { useOffice } from './store.js';
+import { severityOf } from './severity.js';
 
 const S = () => useOffice.getState();
 const L = () => S().layout;
@@ -139,24 +140,53 @@ export function startSim() {
 
   const services = () => S().team.map((r) => ({ id: `docker:app-${r.id}-1`, name: `app-${r.id}-1`, kind: 'docker', agent: r.id }));
 
+  // To'rt darajaning hammasi navbat bilan: mayda → o'rtacha → katta → kritik, keyin xizmat nosozliklari
+  const SAMPLES = [
+    ['minor', 'WARNING urllib3 Retrying (Retry(total=2)) after connection broken'],
+    ['moderate', '[ERROR/ForkPoolWorker-1] task.failed name=sync.process_queue'],
+    ['major', 'IndexError: pop from empty list'],
+    ['critical', 'FATAL:  role "smartshop" does not exist'],
+    ['minor', 'DeprecationWarning: datetime.utcnow() is deprecated'],
+    ['moderate', 'GET /api/orders 500'],
+    ['major', 'Traceback (most recent call last):'],
+    ['critical', 'asyncpg.exceptions.InvalidPasswordError: password authentication failed'],
+  ];
+
   async function incidents() {
-    for (const sv of services()) S().setService({ hook: 'Service', ...sv, state: 'up', detail: 'Up 3 minutes' });
-    await wait(rand(14000, 20000));
+    for (const sv of services()) S().setService({ hook: 'Service', ...sv, state: 'up', severity: 'info', detail: 'Up 3 minutes' });
+    await wait(rand(6000, 9000));
+    let i = 0;
     while (alive()) {
-      const ids = S().team.map((r) => r.id).filter((x) => S().agents[x]);
-      if (Math.random() < 0.55) {
+      const ids = S().team.map((r) => r.id).filter((x) => S().agents[x] && !S().agents[x].down);
+      const step = i % (SAMPLES.length + 2);
+      if (step < SAMPLES.length && ids.length) {
+        const [want, text] = SAMPLES[step];
         const id = pick(ids);
-        if (!S().agents[id]?.down) S().panic(id, pick(workFor(S().agents[id].kind).errors), 'sim');
-      } else {
+        const sev = severityOf(text) ?? want; // haqiqiy qoidalar bilan baholanadi
+        // kritik postgres xatosi takrorlanib turadi — bitta guruhlangan yozuv + hisoblagich
+        const repeat = sev === 'critical' ? 4 : 1;
+        for (let k = 0; k < repeat && alive(); k++) {
+          S().alert(id, sev, text, `app-${id}-1`, { key: `sim|${id}|${text}` });
+          if (k < repeat - 1) await wait(2500);
+        }
+      } else if (step === SAMPLES.length) {
+        // unhealthy → katta
         const sv = pick(services());
-        const bad = Math.random() < 0.7 ? 'down' : 'unhealthy';
-        S().setService({ hook: 'Service', ...sv, state: bad, detail: bad === 'down' ? 'Exited (1) 1 second ago' : 'Up (unhealthy)' });
-        S().log(sv.agent, 'FATAL: process crashed', 'error', sv.name);
+        S().setService({ hook: 'Service', ...sv, state: 'unhealthy', severity: 'major', detail: 'Up (unhealthy)' });
+        await wait(rand(12000, 16000));
+        if (!alive()) return;
+        S().setService({ hook: 'Service', ...sv, state: 'up', severity: 'info', detail: 'Up 1 second' });
+      } else {
+        // konteyner yiqildi → kritik (dam olish xonasi)
+        const sv = pick(services());
+        S().setService({ hook: 'Service', ...sv, state: 'down', severity: 'critical', exitCode: 1, detail: 'Exited (1) 1 second ago' });
+        S().log(sv.agent, 'FATAL: process crashed', 'critical', sv.name);
         await wait(rand(12000, 18000));
         if (!alive()) return;
-        S().setService({ hook: 'Service', ...sv, state: 'up', detail: 'Up 1 second' });
+        S().setService({ hook: 'Service', ...sv, state: 'up', severity: 'info', detail: 'Up 1 second' });
       }
-      await wait(rand(22000, 38000));
+      i++;
+      await wait(rand(9000, 14000));
     }
   }
 

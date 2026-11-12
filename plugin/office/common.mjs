@@ -18,14 +18,20 @@ export function guessAgent(name = '') {
   return 'devops';
 }
 
-// Log qatorining darajasi
-const ERR = /\b(error|errors?:|err!|exception|traceback|fatal|panic|panicked|crash(ed)?|unhandled|segfault|segmentation fault|econnrefused|eaddrinuse|enoent|out of memory|oomkilled|killed|failed|failure|uncaught|stack trace)\b/i;
-const NOT_ERR = /\b(0 errors?|no errors?|errors?: 0|without errors?|error[_-]?(page|handler|boundary)\b)/i;
-const WARN = /\b(warn(ing)?|deprecated|retrying|timeout|timed out)\b/i;
+// Log qatorining darajasi (eski API): info | warn | error. Yangi kod severity.mjs → severityOf ishlatadi.
+import { severityOf, legacyLevel, compileRules, Repeats, classify } from './severity.mjs';
 export function levelOf(line) {
-  if (ERR.test(line) && !NOT_ERR.test(line)) return 'error';
-  if (WARN.test(line)) return 'warn';
-  return 'info';
+  return legacyLevel(severityOf(line) ?? 'info');
+}
+
+// Server bo'ylab bitta tasniflagich: loyiha qoidalari + takrorlanish hisobi
+export function makeClassifier(config) {
+  const st = { compiled: compileRules(config?.severity?.rules), repeats: new Repeats() };
+  return {
+    reload(cfg) { st.compiled = compileRules(cfg?.severity?.rules); },
+    line(source, text) { return classify(text, { source, compiled: st.compiled, repeats: st.repeats }); },
+    get compiled() { return st.compiled; },
+  };
 }
 
 // Loyiha sozlamasi: <loyiha>/.agent-office.json (ixtiyoriy)

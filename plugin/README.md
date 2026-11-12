@@ -2,9 +2,10 @@
 
 A 3D office in your browser that shows this Claude Code session live. Sub-agents walk to their
 desks when Claude delegates work and every tool call appears as a speech bubble. The office also
-follows your Docker containers, terminal commands and log files: an error makes the matching
-agent panic with a red status and alarm, and a stopped or unhealthy container sends its agent to
-the lounge. Press B in the office to walk around as the boss and read any agent's terminal on its
+follows your Docker containers, terminal commands and log files. Every problem is graded minor,
+moderate, major or critical and shown in that colour; from the level you choose (default: major)
+the agent panics with an alarm and siren, and a failing container sends its agent to the lounge.
+Repeated lines are grouped with a counter. Press B in the office to walk around as the boss and read any agent's terminal on its
 monitor. Sky and lighting follow the real sun at your location.
 
 Install:

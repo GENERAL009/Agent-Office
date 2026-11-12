@@ -1,7 +1,8 @@
 // Docker kuzatuvchisi: konteyner holatini har 3 soniyada tekshiradi va
 // ishlayotgan konteynerlarning loglarini oqim bilan o'qiydi.
 import { spawn, execFile } from 'node:child_process';
-import { levelOf, trim } from './common.mjs';
+import { trim } from './common.mjs';
+import { serviceSeverity, RestartTracker } from './severity.mjs';
 import { RateLimit } from './rate.mjs';
 
 const POLL_MS = 3000;
@@ -16,6 +17,7 @@ function dockerPs() {
 }
 
 // Docker holatini ofis tiliga o'tkazish: up | down | unhealthy | restarting | stopped
+const exitCodeOf = (c) => { const m = (c.Status || '').match(/Exited \((-?\d+)\)/); return m ? Number(m[1]) : null; };
 function stateOf(c) {
   const st = (c.State || '').toLowerCase();
   const status = c.Status || '';
@@ -26,11 +28,12 @@ function stateOf(c) {
   return code === 0 || code === 143 || code === 130 ? 'stopped' : 'down';
 }
 
-export function startDocker(config, emit, status, resolve) {
+export function startDocker(config, emit, status, resolve, sev) {
   const tracked = new Map(); // name -> { state, agent, logs }
   const ignore = new Set(config.ignoreContainers || []);
   const agentFor = (name) => resolve(name);
   const limit = new RateLimit();
+  const restarts = new RestartTracker();
   let firstPoll = true;
   let warned = false;
 
@@ -40,9 +43,10 @@ export function startDocker(config, emit, status, resolve) {
       for (const line of buf.toString().split('\n')) {
         const text = line.trim();
         if (!text) continue;
-        const level = levelOf(text);
-        if (!limit.allow(name, level)) continue;
-        emit({ hook: 'Log', source: name, kind: 'docker', agent, level, text: trim(text, 280) });
+        const c = sev.line(name, text);
+        if (!c) continue; // 'ignore' qoidasi
+        if (!limit.allow(name, c.level)) continue;
+        emit({ hook: 'Log', source: name, kind: 'docker', agent, level: c.level, severity: c.severity, key: c.key, count: c.count, escalated: c.escalated || undefined, text: trim(text, 280) });
       }
     };
     p.stdout.on('data', onData);
@@ -80,9 +84,14 @@ export function startDocker(config, emit, status, resolve) {
         tracked.set(name, t);
       }
       if (t.state !== state) {
+        // bitta qayta yonish = 'restarting' holatiga o'tish yoki yiqilgandan (down) keyin yana 'up'
+        if (state === 'restarting' || (state === 'up' && t.state === 'down')) restarts.note(name);
+        const n = restarts.count(name);
+        const exitCode = exitCodeOf(c);
+        const severity = serviceSeverity(state, { restarts: n, exitCode });
         emit({
           hook: 'Service', id: `docker:${name}`, name, kind: 'docker', agent: t.agent, state,
-          prev: t.state, detail: c.Status, image: c.Image,
+          prev: t.state, detail: c.Status, image: c.Image, severity, restarts: n, exitCode: exitCode ?? undefined,
         });
         t.state = state;
       }

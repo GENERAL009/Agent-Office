@@ -1,6 +1,7 @@
 // Live rejim: Claude Code hook'lari, Docker, terminal va log fayllardan kelgan hodisalarni
 // agent harakatiga aylantiradi.
 import { useOffice } from './store.js';
+import { fromLegacy, isLevel, severityOf } from './severity.js';
 
 // Ofis serverning o'zidan ochilsa — o'sha manzil; Vite dev serverdan ochilsa — 4777 port
 // Ofis serverining o'zidan ochilgan bo'lsa — o'sha manzil. Vite dev (5173) yoki fayldan ochilsa —
@@ -78,7 +79,12 @@ export function handleEvent(e) {
       if (Array.isArray(e.team)) s.setTeam(e.team);
       break;
     }
+    case 'Settings': {
+      if (e.severity) s.setServerSeverity(e.severity);
+      break;
+    }
     case 'Snapshot': {
+      if (e.severity) s.setServerSeverity(e.severity);
       if (e.project) useOffice.setState({ project: e.project });
       if (Array.isArray(e.team)) s.setTeam(e.team, { replace: true });
       for (const sv of e.services || []) s.setService(sv);
@@ -89,8 +95,10 @@ export function handleEvent(e) {
     case 'Log': {
       const id = norm(e.agent) || 'devops';
       s.ensureAgent(id);
-      if (e.level === 'error') S().panic(id, short(e.text, 90), e.source);
-      else S().log(id, e.text, e.level, e.source);
+      // yangi server `severity` yuboradi; eskisi faqat `level`
+      const sev = isLevel(e.severity) ? e.severity : fromLegacy(e.level);
+      if (sev === 'info') S().log(id, e.text, 'info', e.source, { key: e.key, count: e.count });
+      else S().alert(id, sev, short(e.text, 110), e.source, { key: e.key, count: e.count });
       break;
     }
     case 'SessionStart': {
@@ -146,19 +154,21 @@ export function handleEvent(e) {
         s.setState(norm(e.agent_type) || 'manager', 'thinking');
       } else if (e.stderr) {
         const who = actorOf(e);
-        if (e.stderr_level === 'error') s.panic(who, short(e.stderr, 90), 'stderr');
-        else s.log(who, `stderr: ${short(e.stderr, 120)}`, 'warn');
+        const sev = isLevel(e.stderr_severity) ? e.stderr_severity : fromLegacy(e.stderr_level ?? 'warn');
+        if (sev === 'info') s.log(who, `stderr: ${short(e.stderr, 120)}`, 'info', 'stderr');
+        else s.alert(who, sev, short(e.stderr, 90), 'stderr');
       }
       break;
     }
     case 'PostToolUseFailure': {
       if (e.is_interrupt) break;
       const who = actorOf(e);
-      s.panic(who, `${tool} yiqildi: ${short(firstLine(e.error), 80)}`, tool);
+      const sev = isLevel(e.severity) ? e.severity : (tool === 'Bash' ? 'major' : 'moderate');
+      s.alert(who, sev, `${tool} yiqildi: ${short(firstLine(e.error), 80)}`, tool);
       if (SPAWN_TOOLS.has(tool)) {
         const idx = running.findIndex((r) => r.id && r.id === e.tool_use_id);
         const r = idx >= 0 ? running.splice(idx, 1)[0] : null;
-        if (r) S().panic(r.agent, 'Sub-agent xato bilan tugadi', tool);
+        if (r) S().alert(r.agent, 'major', 'Sub-agent xato bilan tugadi', tool);
       }
       break;
     }
@@ -175,7 +185,7 @@ export function handleEvent(e) {
       break;
     }
     case 'StopFailure': {
-      s.panic('manager', `Javob yiqildi: ${short(firstLine(e.error), 70) || 'API xatosi'}`, 'Claude');
+      s.alert('manager', isLevel(e.severity) ? e.severity : 'major', `Javob yiqildi: ${short(firstLine(e.error), 70) || 'API xatosi'}`, 'Claude');
       break;
     }
     default: break;

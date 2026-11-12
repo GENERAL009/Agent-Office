@@ -24,10 +24,14 @@ export async function ensureServer(projectDir, waitMs = 4000) {
     stdio: ['ignore', out, out],
     env: { ...process.env, AGENT_OFFICE_PROJECT: projectDir },
   });
+  // spawn xatosi (masalan noto'g'ri papka) jarayonni yiqitmasin
+  let spawnError = null;
+  child.on('error', (e) => { spawnError = e; });
   child.unref();
   const until = Date.now() + waitMs;
   while (Date.now() < until) {
     await new Promise((r) => setTimeout(r, 200));
+    if (spawnError) return { started: false, info: null, error: spawnError };
     const info = await findServer();
     if (info) return { started: true, info };
   }
@@ -104,6 +108,12 @@ async function main() {
   const flags = new Set(args.filter((a) => a.startsWith('--')));
   const [cmd = 'status', dir] = args.filter((a) => !a.startsWith('--'));
   const projectDir = path.resolve(dir || process.env.CLAUDE_PROJECT_DIR || process.cwd());
+
+  if ((cmd === 'start' || cmd === 'doctor') && !(fs.existsSync(projectDir) && fs.statSync(projectDir).isDirectory())) {
+    console.log(`Project folder not found: ${projectDir}`);
+    console.log('Open a terminal in your project folder and run the command without a folder argument.');
+    process.exit(1);
+  }
 
   if (cmd === 'start') {
     const { started, info } = await ensureServer(projectDir);

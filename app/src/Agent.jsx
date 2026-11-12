@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { useOffice, positions } from './store.js';
 import Person, { lookFor } from './Person.jsx';
+import { SEV, visibleSev, rank, maxSev } from './severity.js';
 
 const SPEED = 2.6; // katak/sekund
 export const STATE_UZ = {
@@ -18,6 +19,12 @@ export default function Agent({ id }) {
   const toWorld = useOffice((s) => s.layout.toWorld);
   const lowLight = useOffice((s) => s.sky.lamps > 0.5);
   const boss = useOffice((s) => s.boss);
+  const settings = useOffice((s) => s.settings);
+  // ko'rsatiladigan daraja: panika/ishlamay qolish holatida — kamida signal darajasi
+  const rawSev = a ? maxSev(a.sev ?? 'info', a.state === 'panic' ? (a.alarm?.severity ?? 'info') : a.down ? (a.down.severity ?? 'info') : 'info') : 'info';
+  const vis = visibleSev(rawSev, settings) ?? ((a?.state === 'panic' || a?.down) ? 'major' : null);
+  const sevColor = vis ? (SEV[vis].glow ?? SEV[vis].fill) : '#ff2d3a';
+  const sevRank = vis ? rank(vis) : 0;
 
   const root = useRef();
   const ring = useRef();
@@ -80,25 +87,36 @@ export default function Agent({ id }) {
     pose.current.mode = mode;
     pose.current.moving = moving;
 
+    // halqa va nur: daraja qancha yuqori bo'lsa — shuncha tez va kuchli miltillaydi
     if (ring.current) {
-      ring.current.visible = panic || down;
-      ring.current.material.opacity = panic ? 0.5 + 0.5 * Math.sin(t * 12) : 0.6 + 0.2 * Math.sin(t * 3);
-      ring.current.scale.setScalar(panic ? 1 + 0.35 * (0.5 + 0.5 * Math.sin(t * 6)) : 1);
+      ring.current.visible = sevRank > 0 || panic || down;
+      ring.current.material.color.set(sevColor);
+      const speed = [0, 2, 4, 8, 14][sevRank] || 8;
+      ring.current.material.opacity = panic ? 0.5 + 0.5 * Math.sin(t * speed * 1.5) : 0.45 + 0.25 * Math.sin(t * speed);
+      ring.current.scale.setScalar(panic ? 1 + 0.35 * (0.5 + 0.5 * Math.sin(t * 6)) : sevRank >= 3 ? 1 + 0.08 * Math.sin(t * speed) : 0.85);
     }
     if (alarmLight.current) {
-      alarmLight.current.intensity = panic ? (Math.sin(t * 12) > 0 ? 6 : 1) * (lowLight ? 1.2 : 2) : down ? 1.2 : 0;
+      alarmLight.current.color.set(sevColor);
+      const k = lowLight ? 1.2 : 2;
+      const speed = [0, 2, 4, 9, 16][sevRank] || 9;
+      const base = [0, 0.4, 0.8, 1.4, 2.4][sevRank];
+      alarmLight.current.intensity = panic
+        ? (Math.sin(t * speed) > 0 ? (sevRank >= 4 ? 9 : 6) : 1) * k
+        : down ? 1.4 * k * (sevRank >= 4 ? 0.6 + 0.4 * Math.abs(Math.sin(t * 5)) : 1)
+          : base * (0.6 + 0.4 * Math.sin(t * speed)) * k;
     }
   });
 
   if (!a) return null;
   const showBubble = a.bubble && a.bubbleUntil > Date.now();
   const bad = a.state === 'panic' || a.state === 'down';
+  const tagClass = bad ? `bad ${vis ? `sev-${vis}` : ''}` : vis ? `flag sev-${vis}` : '';
 
   return (
     <group ref={root} onClick={(e) => { e.stopPropagation(); select(id); }}>
       <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.025} visible={false}>
         <ringGeometry args={[0.5, 0.72, 48]} />
-        <meshBasicMaterial color="#ff2d3a" transparent opacity={0.8} depthWrite={false} toneMapped={false} />
+        <meshBasicMaterial color={sevColor} transparent opacity={0.8} depthWrite={false} toneMapped={false} />
       </mesh>
       <pointLight ref={alarmLight} position={[0, 2.2, 0]} color="#ff2a2a" intensity={0} distance={5} decay={1.4} />
       {selected && (
@@ -111,7 +129,8 @@ export default function Agent({ id }) {
       <Html position={[0, 2.05, 0]} center distanceFactor={boss ? 6 : 15} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
         <div className="tag-wrap">
           {showBubble && <div className={`bubble ${a.bubbleKind}`}>{a.bubble}</div>}
-          <div className={`tag ${bad ? 'bad' : ''}`}>
+          <div className={`tag ${tagClass}`}>
+            {vis && !bad && <span className="tag-flag">{vis === 'minor' ? '⚠' : '❗'}</span>}
             <span className="dot" style={{ background: a.color }} />
             {a.name}
             <span className="tag-state">· {STATE_UZ[a.state] ?? a.state}</span>

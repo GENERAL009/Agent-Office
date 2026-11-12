@@ -2,10 +2,10 @@
 //   "logs": [{ "path": "logs/api.log", "agent": "backend" }]
 import fs from 'node:fs';
 import path from 'node:path';
-import { levelOf, trim } from './common.mjs';
+import { trim } from './common.mjs';
 import { RateLimit } from './rate.mjs';
 
-export function startFiles(config, projectDir, emit, status, resolve) {
+export function startFiles(config, projectDir, emit, status, resolve, sev) {
   const limit = new RateLimit();
   for (const entry of config.logs || []) {
     const file = path.resolve(projectDir, entry.path);
@@ -22,7 +22,7 @@ export function startFiles(config, projectDir, emit, status, resolve) {
       try { st = fs.statSync(file); } catch {
         if (present !== false) {
           present = false;
-          emit({ hook: 'Service', id, name, kind: 'file', agent, state: 'stopped', detail: 'Fayl topilmadi' });
+          emit({ hook: 'Service', id, name, kind: 'file', agent, state: 'stopped', severity: 'info', detail: 'Fayl topilmadi' });
         }
         return;
       }
@@ -31,7 +31,7 @@ export function startFiles(config, projectDir, emit, status, resolve) {
         // Keyinroq paydo bo'lgan fayl: boshidan o'qiymiz.
         if (present === null) pos = st.size;
         present = true;
-        emit({ hook: 'Service', id, name, kind: 'file', agent, state: 'up', detail: entry.path });
+        emit({ hook: 'Service', id, name, kind: 'file', agent, state: 'up', severity: 'info', detail: entry.path });
       }
       if (st.size < pos) pos = 0; // fayl qisqartirildi (rotate)
       if (st.size === pos) return;
@@ -45,9 +45,10 @@ export function startFiles(config, projectDir, emit, status, resolve) {
       for (const line of lines) {
         const text = line.trim();
         if (!text) continue;
-        const level = levelOf(text);
-        if (!limit.allow(id, level)) continue;
-        emit({ hook: 'Log', source: name, kind: 'file', agent, level, text: trim(text, 280) });
+        const c = sev.line(name, text);
+        if (!c) continue;
+        if (!limit.allow(id, c.level)) continue;
+        emit({ hook: 'Log', source: name, kind: 'file', agent, level: c.level, severity: c.severity, key: c.key, count: c.count, escalated: c.escalated || undefined, text: trim(text, 280) });
       }
     };
     read();

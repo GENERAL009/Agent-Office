@@ -3,7 +3,8 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
-import { useOffice, BAD } from './store.js';
+import { useOffice } from './store.js';
+import { rank } from './severity.js';
 
 const METAL = '#1f232a';
 const OAK = '#c9a27a';
@@ -18,7 +19,11 @@ function textTexture(text, { w = 1024, h = 160, color = '#fff', font = '700 92px
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-const useAlert = () => useOffice((s) => Object.values(s.services).some((sv) => BAD.has(sv.state)) || Object.values(s.agents).some((a) => a.state === 'panic'));
+// sirena va server LED'lari: panika chegarasidan yuqori faol muammo bo'lsa yonadi
+const useAlert = () => useOffice((s) => {
+  const min = rank(s.settings.panicAt);
+  return Object.values(s.agents).some((a) => a.state === 'panic' || a.down || rank(a.sev) >= min);
+});
 
 // --------------------------------------------------------------------------
 function Bookshelf() {

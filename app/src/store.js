@@ -3,6 +3,7 @@ import { buildLayout, kindOf, KIND_COLOR, prettyName } from './layout.js';
 import { findPath } from './pathfinding.js';
 import { computeSky } from './sun.js';
 import { alarmSound } from './sound.js';
+import { rank, maxSev, bump, normalize, serviceSeverity, mergeSettings, loadLocalSettings, saveLocalSettings, atLeast, LEVELS } from './severity.js';
 
 // Har kadrda o'zgaradigan pozitsiyalar store'da emas, shu yerda turadi (to'r koordinatalarida).
 export const positions = {};
@@ -14,6 +15,8 @@ export const DEFAULT_TEAM = [
 ];
 const EXTRA = ['#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444', '#22c55e', '#06b6d4'];
 export const BAD = new Set(['down', 'unhealthy', 'restarting']);
+const QUIET_MS = 120_000; // xato 2 daqiqa takrorlanmasa — daraja pasaya boshlaydi
+const DECAY_STEP_MS = 20_000; // keyin har 20 soniyada bir pog'ona
 const PANIC_MS = 7000;
 
 export const normTeam = (team) => team.map((r, i) => {
@@ -33,7 +36,7 @@ function makeAgent(def, L, index, inLounge) {
     task: inLounge ? '' : 'Ish boshlanmoqda',
     bubble: '', bubbleUntil: 0, bubbleKind: '',
     path: [], pathId: 0, after: null,
-    log: [], alarm: null, down: null, errors: 0, resume: null, calmState: 'idle',
+    log: [], alarm: null, down: null, errors: 0, resume: null, calmState: 'idle', sev: 'info',
   };
 }
 
@@ -62,6 +65,19 @@ export const useOffice = create((set, get) => ({
   timeOffsetH: 0,
   sky: computeSky(30, 20),
   sunInfo: null,
+  replayInfo: null,
+  // xatolik darajalari
+  serverSeverity: {},
+  settings: mergeSettings({}, loadLocalSettings()),
+  issues: {}, // key -> { key, agent, severity, text, source, count, lastAt, kind }
+  setServerSeverity: (serverSeverity) => set({ serverSeverity, settings: mergeSettings(serverSeverity, loadLocalSettings()) }),
+  setSetting: (k, v) => {
+    const local = { ...loadLocalSettings(), [k]: v };
+    saveLocalSettings(local);
+    set({ settings: mergeSettings(get().serverSeverity, local) });
+    for (const id of Object.keys(get().agents)) { get().recomputeSev(id); get().recomputeDown(id); }
+  },
+  resetSettings: () => { saveLocalSettings({}); set({ settings: mergeSettings(get().serverSeverity, {}) }); },
   // boshliq rejimi
   boss: false,
   bossName: (() => { try { return localStorage.getItem('agent-office-boss') || 'Boshliq'; } catch { return 'Boshliq'; } })(),
@@ -70,7 +86,7 @@ export const useOffice = create((set, get) => ({
 
   setMode: (mode) => {
     const L = get().layout;
-    set({ mode, agents: agentsFor(get().team, L, mode === 'live'), feed: [], services: {}, selected: null });
+    set({ mode, agents: agentsFor(get().team, L, mode === 'live'), feed: [], services: {}, issues: {}, selected: null });
   },
   setConn: (conn) => set({ conn }),
   setThemeMode: (themeMode) => set({ themeMode, timeOffsetH: 0 }),
@@ -90,7 +106,7 @@ export const useOffice = create((set, get) => ({
       const same = team.map((r) => r.id).join() === get().team.map((r) => r.id).join();
       if (same) { set({ team: get().team.map((c) => ({ ...c, ...team.find((t) => t.id === c.id) })) }); return; }
       const L = buildLayout(team);
-      set({ team, layout: L, agents: agentsFor(team, L, get().mode === 'live'), services: {}, selected: null });
+      set({ team, layout: L, agents: agentsFor(team, L, get().mode === 'live'), services: {}, issues: {}, selected: null });
       return;
     }
     const cur = get().team;
@@ -159,41 +175,118 @@ export const useOffice = create((set, get) => ({
 
   say: (id, text, ms = 3500, kind = '') => get().patch(id, { bubble: text, bubbleUntil: Date.now() + ms, bubbleKind: kind }),
 
-  log: (id, text, level = 'info', source = '') => {
+  // level: eski nom ('info'|'warn'|'error') yoki daraja ('minor'…'critical'). key berilsa — bir xil qatorlar bitta yozuvga guruhlanadi.
+  log: (id, text, level = 'info', source = '', { key = null, count = null } = {}) => {
     const time = stamp();
+    const severity = LEVELS.includes(level) ? level : level === 'error' ? 'moderate' : level === 'warn' ? 'minor' : 'info';
     set((s) => {
       const a = s.agents[id];
       if (!a) return s;
-      const entry = { time, text, level, source };
+      const entry = { time, text, level: severity, severity, source, key, count: count ?? 1 };
+      const merge = (list, extra) => {
+        if (key) {
+          const i = list.findIndex((e) => e.key === key);
+          if (i >= 0) {
+            const old = list[i];
+            const upd = { ...old, ...entry, ...extra, count: count ?? old.count + 1, severity: maxSev(old.severity, severity) };
+            upd.level = upd.severity;
+            return [upd, ...list.slice(0, i), ...list.slice(i + 1)];
+          }
+        }
+        return [{ ...entry, ...extra }, ...list];
+      };
       return {
-        agents: { ...s.agents, [id]: { ...a, log: [entry, ...a.log].slice(0, 60) } },
-        feed: [{ ...entry, who: a.name, color: a.color }, ...s.feed].slice(0, 100),
+        agents: { ...s.agents, [id]: { ...a, log: merge(a.log).slice(0, 60) } },
+        feed: merge(s.feed, { who: a.name, color: a.color, agent: id }).slice(0, 120),
       };
     });
   },
 
   // ---------- Nosozliklar ----------
-  panic: (id, text, source = '') => {
+  // alert: har qanday darajadagi muammo. Panika (sakrash, sirena, qizil) faqat sozlamadagi chegaradan boshlab.
+  alert: (id, severity, text, source = '', { key = null, count = null, kind = 'log' } = {}) => {
+    if (!severity || severity === 'info') { get().log(id, text, 'info', source, { key, count }); return; }
     get().ensureAgent(id);
+    const s = get();
+    const a = s.agents[id];
+    if (!a) return;
+    const k = key || `${id}|${source}|${normalize(text)}`;
+    const prev = s.issues[k];
+    const issue = {
+      key: k, agent: id, text, source, kind,
+      severity: prev ? maxSev(prev.severity, severity) : severity,
+      count: count ?? (prev ? prev.count + 1 : 1),
+      lastAt: Date.now(), firstAt: prev?.firstAt ?? Date.now(),
+    };
+    set({ issues: { ...s.issues, [k]: issue } });
+    s.log(id, text, issue.severity, source, { key: k, count: issue.count });
+    if (!prev) s.patch(id, { errors: a.errors + 1 }); // takror emas, yangi muammo
+    get().recomputeSev(id);
+
+    const st = get().settings;
+    const panicNow = atLeast(issue.severity, st.panicAt);
+    // takroriy (guruhlangan) qator har safar sakratmaydi — faqat yangi xato yoki daraja ko'tarilganda
+    const fresh = !prev || rank(issue.severity) > rank(prev.severity) || Date.now() - prev.lastAt > 30_000;
+    if (panicNow && fresh) get().startPanic(id, text, issue.severity);
+    else if (fresh && st.colorMode === 'status') get().say(id, `${issue.severity === 'minor' ? '⚠' : '❗'} ${text}`, 3500, `sev-${issue.severity}`);
+    if (fresh && !get().muted && atLeast(issue.severity, st.sound)) alarmSound(issue.severity);
+  },
+  // eski API: panic(id, text) → kamida panika chegarasidagi daraja
+  panic: (id, text, source = '') => get().alert(id, maxSev('major', get().settings.panicAt), text, source),
+
+  startPanic: (id, text, severity) => {
     const s = get();
     const a = s.agents[id];
     if (!a) return;
     const was = s.isPanicking(id);
     const calmState = was ? a.calmState : (a.state === 'walking' ? (a.after?.state ?? 'idle') : a.state);
     const resume = was ? a.resume : (a.state === 'walking' && a.path.length ? { cell: a.path[a.path.length - 1], after: a.after } : null);
+    const ms = severity === 'critical' ? PANIC_MS + 3000 : PANIC_MS;
     s.patch(id, {
-      alarm: { until: Date.now() + PANIC_MS, text },
-      errors: a.errors + 1,
+      alarm: { until: Date.now() + ms, text, severity },
       calmState: a.down ? 'down' : calmState,
       resume,
       ...(a.down ? {} : { state: 'panic', path: [] }),
     });
-    s.say(id, `🔥 ${text}`, 5000, 'error');
-    s.log(id, text, 'error', source);
-    if (!get().muted) alarmSound();
+    s.say(id, `${severity === 'critical' ? '🚨' : '🔥'} ${text}`, 5000, `sev-${severity}`);
     clearTimeout(calmTimers[id]);
-    calmTimers[id] = setTimeout(() => get().calm(id), PANIC_MS + 50);
+    calmTimers[id] = setTimeout(() => get().calm(id), ms + 50);
   },
+
+  // agentning joriy darajasi: faol muammolari va xizmatlarining eng yuqorisi
+  recomputeSev: (id) => {
+    const a = get().agents[id];
+    if (!a) return;
+    let sev = 'info';
+    for (const is of Object.values(get().issues)) if (is.agent === id) sev = maxSev(sev, is.severity);
+    for (const sv of Object.values(get().services)) if (sv.agent === id) sev = maxSev(sev, sv.severity ?? 'info');
+    if (sev !== a.sev) get().patch(id, { sev });
+  },
+
+  // asta pasayish: 2 daqiqa jim bo'lsa har 20 soniyada bir pog'ona
+  decayTick: () => {
+    const now = Date.now();
+    const issues = { ...get().issues };
+    const touched = new Set();
+    let changed = false;
+    for (const [k, is] of Object.entries(issues)) {
+      if (is.kind !== 'log') continue;
+      const quiet = now - is.lastAt;
+      if (quiet < QUIET_MS) continue;
+      const steps = Math.floor((quiet - QUIET_MS) / DECAY_STEP_MS) + 1;
+      const target = LEVELS[Math.max(0, rank(is.peak ?? is.severity) - steps)];
+      if (target === 'info') { delete issues[k]; changed = true; touched.add(is.agent); }
+      else if (target !== is.severity) { issues[k] = { ...is, peak: is.peak ?? is.severity, severity: target }; changed = true; touched.add(is.agent); }
+    }
+    if (changed) { set({ issues }); for (const id of touched) get().recomputeSev(id); }
+  },
+  clearIssues: (id) => {
+    const issues = Object.fromEntries(Object.entries(get().issues).filter(([, is]) => is.agent !== id));
+    set({ issues });
+    get().patch(id, { errors: 0 });
+    get().recomputeSev(id);
+  },
+
   calm: (id) => {
     const a = get().agents[id];
     if (!a || !a.alarm || a.alarm.until > Date.now()) return;
@@ -206,35 +299,48 @@ export const useOffice = create((set, get) => ({
       get().patch(id, { state: a.calmState === 'panic' ? 'idle' : a.calmState });
     }
   },
-  clearErrors: (id) => get().patch(id, { errors: 0 }),
+  clearErrors: (id) => get().clearIssues(id),
 
   setService: (ev) => {
     const id = ev.agent || 'devops';
     get().ensureAgent(id);
     const prev = get().services[ev.id];
-    set({ services: { ...get().services, [ev.id]: { ...ev, agent: id, at: Date.now() } } });
+    // eski serverlar severity yubormaydi — holatdan hisoblaymiz
+    const severity = ev.severity ?? serviceSeverity(ev.state, { restarts: ev.restarts ?? 0, exitCode: ev.exitCode ?? (ev.state === 'down' ? 1 : null) });
+    set({ services: { ...get().services, [ev.id]: { ...ev, agent: id, severity, at: Date.now() } } });
     const icon = ev.kind === 'docker' ? '🐳' : ev.kind === 'terminal' ? '⌨' : '📄';
-    if (!prev || prev.state !== ev.state) get().log(id, `${icon} ${ev.name}: ${ev.state}${ev.detail ? ` (${ev.detail})` : ''}`, BAD.has(ev.state) ? 'error' : 'info', ev.name);
+    if (!prev || prev.state !== ev.state || prev.severity !== severity) {
+      const text = `${icon} ${ev.name}: ${ev.state}${ev.detail ? ` (${ev.detail})` : ''}`;
+      get().log(id, text, severity, ev.name);
+      if (rank(severity) > 0 && !get().muted && atLeast(severity, get().settings.sound) && rank(severity) > rank(prev?.severity ?? 'info')) alarmSound(severity);
+    }
+    get().recomputeSev(id);
     get().recomputeDown(id, ev);
   },
   recomputeDown: (id, trigger) => {
-    const bad = Object.values(get().services).filter((sv) => sv.agent === id && BAD.has(sv.state));
+    // dam olish xonasiga faqat panika chegarasidan yuqori darajadagi xizmat nosozligi yuboradi
+    const panicAt = get().settings.panicAt;
+    const bad = Object.values(get().services)
+      .filter((sv) => sv.agent === id && BAD.has(sv.state) && atLeast(sv.severity ?? 'major', panicAt))
+      .sort((x, y) => rank(y.severity) - rank(x.severity));
     const a = get().agents[id];
     if (!a) return;
     if (bad.length && !a.down) {
       const sv = bad[0];
       const why = sv.state === 'unhealthy' ? 'sog‘lom emas' : sv.state === 'restarting' ? 'qayta-qayta yiqilmoqda' : 'to‘xtadi';
-      get().patch(id, { down: { service: sv.name, reason: why }, alarm: null, path: [], resume: null });
-      get().say(id, `💥 ${sv.name} ${why}`, 6000, 'error');
-      if (!get().muted) alarmSound();
+      get().patch(id, { down: { service: sv.name, reason: why, severity: sv.severity }, alarm: null, path: [], resume: null });
+      get().say(id, `💥 ${sv.name} ${why}`, 6000, `sev-${sv.severity ?? 'major'}`);
       const seats = get().layout.lounge.couchSeats;
       get().goTo(id, seats[a.index % seats.length], { face: 'desk', state: 'down' }, true);
     } else if (!bad.length && a.down) {
       get().patch(id, { down: null });
-      get().say(id, `✅ ${trigger?.name ?? 'xizmat'} yana ishlayapti`, 4000, 'ok');
+      get().say(id, `✅ ${trigger?.name ?? 'xizmat'} tiklandi`, 4000, 'ok');
       get().goToDesk(id, { state: get().mode === 'sim' ? 'working' : 'idle' });
     } else if (bad.length && a.down && a.down.service !== bad[0].name) {
-      get().patch(id, { down: { ...a.down, service: bad[0].name } });
+      get().patch(id, { down: { ...a.down, service: bad[0].name, severity: bad[0].severity } });
     }
   },
 }));
+
+// asta pasayish taymeri
+setInterval(() => useOffice.getState().decayTick(), 5000);

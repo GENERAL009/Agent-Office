@@ -122,6 +122,17 @@ details p { color: var(--ink-2); margin: 10px 0 0; }
 footer { background: var(--board); color: #aab6c6; padding: 40px 0; font-size: 15px; }
 footer a { color: #fff; }
 
+
+/* xatolik darajalari */
+.sevtable td:first-child { white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; }
+.chip i { width: 22px; height: 14px; border-radius: 3px; display: inline-block; }
+.levels { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin: 28px 0 8px; border-radius: 8px; overflow: hidden; }
+.levels div { padding: 14px 14px 12px; color: #fff; font-weight: 800; font-size: 15px; min-width: 0; }
+.levels div small { display: block; font-weight: 400; font-size: 13px; opacity: 0.9; margin-top: 2px; }
+.levels .l-minor { color: #2a2000; }
+@media (max-width: 860px) { .levels { grid-template-columns: 1fr 1fr; } }
+
 @media (max-width: 860px) {
   .hero-grid, .split, .sources, .rules, .ref, .sun-pair { grid-template-columns: 1fr; }
   .hero { padding-top: 64px; }
@@ -204,7 +215,7 @@ footer a { color: #fff; }
         <div class="rules">
           <div>
             <h3><span data-l="en">An error → panic</span><span data-l="uz">Xato → vahima</span></h3>
-            <p><span data-l="en">A failed tool call, a stack trace in a container log or a red line in your terminal. The agent jumps, its status turns red, the rack siren spins and a banner names the error.</span><span data-l="uz">Yiqilgan tool chaqiruvi, konteyner logidagi stack trace yoki terminaldagi xato qatori. Agent sakraydi, holati qizaradi, rack sirenasi aylanadi, banner xatoni ko‘rsatadi.</span></p>
+            <p><span data-l="en">A failed tool call, a stack trace in a container log or a red line in your terminal. From the level you choose, the agent jumps, its status turns red, the rack siren spins and a banner names the error. Smaller problems just colour the agent yellow or orange.</span><span data-l="uz">Yiqilgan tool chaqiruvi, konteyner logidagi stack trace yoki terminaldagi xato qatori. Siz tanlagan darajadan boshlab agent sakraydi, holati qizaradi, rack sirenasi aylanadi, banner xatoni ko‘rsatadi. Kichikroq muammolar agentni sariq yoki olovrangga bo‘yaydi, xolos.</span></p>
           </div>
           <div class="lounge">
             <h3><span data-l="en">A service stops → lounge</span><span data-l="uz">Xizmat to‘xtadi → dam olish</span></h3>
@@ -257,6 +268,38 @@ footer a { color: #fff; }
     </div>
   </section>
 
+
+  <section id="severity">
+    <div class="wrap">
+      <h2 class="s"><span data-l="en">Not every error is an emergency</span><span data-l="uz">Har bir xato ham favqulodda emas</span></h2>
+      <p class="intro"><span data-l="en">The server grades each log line, failed tool call and container state into one of five levels. You decide from which level an agent panics.</span><span data-l="uz">Server har bir log qatori, yiqilgan tool chaqiruvi va konteyner holatini besh darajadan biriga baholaydi. Agent qaysi darajadan panika qilishini o‘zingiz tanlaysiz.</span></p>
+      <div class="levels" aria-hidden="true">
+        <div style="background:#64748B"><span data-l="en">Info</span><span data-l="uz">Oddiy</span><small>2xx · 404</small></div>
+        <div class="l-minor" style="background:#EAB308"><span data-l="en">Minor</span><span data-l="uz">Mayda</span><small>warning · retry · 4xx</small></div>
+        <div style="background:#F97316"><span data-l="en">Moderate</span><span data-l="uz">O‘rtacha</span><small>ERROR · 5xx</small></div>
+        <div style="background:#DC2626"><span data-l="en">Major</span><span data-l="uz">Katta</span><small>Traceback · unhealthy</small></div>
+        <div style="background:#7F1D1D"><span data-l="en">Critical</span><span data-l="uz">Kritik</span><small>FATAL · OOM · DB auth</small></div>
+      </div>
+      <table class="sevtable">
+        <tr><th><span data-l="en">Level</span><span data-l="uz">Daraja</span></th><th><span data-l="en">When</span><span data-l="uz">Qachon</span></th></tr>
+        <tr><td><span class="chip"><i style="background:#EAB308"></i><span data-l="en">Minor</span><span data-l="uz">Mayda</span></span></td><td><span data-l="en">warning, deprecated, retrying, timeout, 4xx other than 404</span><span data-l="uz">ogohlantirish, deprecated, retry, timeout, 404 dan boshqa 4xx</span></td></tr>
+        <tr><td><span class="chip"><i style="background:#F97316"></i><span data-l="en">Moderate</span><span data-l="uz">O‘rtacha</span></span></td><td><span data-l="en">one ERROR line, a caught exception, a failed tool call, one 5xx</span><span data-l="uz">bitta ERROR qatori, ushlangan exception, yiqilgan tool chaqiruvi, bitta 5xx</span></td></tr>
+        <tr><td><span class="chip"><i style="background:#DC2626"></i><span data-l="en">Major</span><span data-l="uz">Katta</span></span></td><td><span data-l="en">Traceback, unhandled exception, <code>IndexError:</code>-style lines, container <code>unhealthy</code>, a command exiting non-zero</span><span data-l="uz">Traceback, ushlanmagan exception, <code>IndexError:</code> kabi qatorlar, <code>unhealthy</code> konteyner, buyruq non-zero exit</span></td></tr>
+        <tr><td><span class="chip"><i style="background:#7F1D1D"></i><span data-l="en">Critical</span><span data-l="uz">Kritik</span></span></td><td><span data-l="en">FATAL, PANIC, CRITICAL, OOMKilled, segfault, a container that exits with an error or restarts 3+ times in 3 minutes, database auth errors, <code>ECONNREFUSED</code> to a database</span><span data-l="uz">FATAL, PANIC, CRITICAL, OOMKilled, segfault, xato bilan to‘xtagan yoki 3 daqiqada 3+ marta qayta yongan konteyner, bazaga kirish xatosi, bazaga <code>ECONNREFUSED</code></span></td></tr>
+      </table>
+      <p style="margin-top:22px"><span data-l="en">The same line seen 5 times within 2 minutes is grouped into one entry with a counter and raised one level. When it stops for 2 minutes the level steps down and the agent goes back to work.</span><span data-l="uz">Bir xil qator 2 daqiqada 5 marta chiqsa, hisoblagichli bitta yozuvga guruhlanadi va bir daraja ko‘tariladi. 2 daqiqa takrorlanmasa, daraja asta pasayadi va agent ishiga qaytadi.</span></p>
+      <h3 style="margin-top:36px"><span data-l="en">Settings in the panel (Xatolar)</span><span data-l="uz">Paneldagi sozlamalar (Xatolar)</span></h3>
+      <table>
+        <tr><th><span data-l="en">Setting</span><span data-l="uz">Sozlama</span></th><th><span data-l="en">Options</span><span data-l="uz">Variantlar</span></th><th><span data-l="en">Default</span><span data-l="uz">Standart</span></th></tr>
+        <tr><td><span data-l="en">Panic threshold</span><span data-l="uz">Panika chegarasi</span></td><td><span data-l="en">Minor · Moderate · Major · Critical — red light, siren, lounge</span><span data-l="uz">Mayda · O‘rtacha · Katta · Kritik — qizil chiroq, sirena, dam olish xonasi</span></td><td><span data-l="en">Major</span><span data-l="uz">Katta</span></td></tr>
+        <tr><td><span data-l="en">Colour mode</span><span data-l="uz">Rang rejimi</span></td><td><span data-l="en">By status (yellow → orange → red → blood red) · Red only</span><span data-l="uz">Holat bo‘yicha (sariq → olovrang → qizil → qonli qizil) · Faqat qizil</span></td><td><span data-l="en">By status</span><span data-l="uz">Holat bo‘yicha</span></td></tr>
+        <tr><td><span data-l="en">Sound</span><span data-l="uz">Ovoz</span></td><td><span data-l="en">Off · Major · Critical</span><span data-l="uz">O‘chiq · Katta · Kritik</span></td><td><span data-l="en">Critical</span><span data-l="uz">Kritik</span></td></tr>
+        <tr><td><span data-l="en">Events feed</span><span data-l="uz">Hodisalar lentasi</span></td><td><span data-l="en">All · Minor+ · Moderate+ · Major+</span><span data-l="uz">Hammasi · Mayda+ · O‘rtacha+ · Katta+</span></td><td><span data-l="en">All</span><span data-l="uz">Hammasi</span></td></tr>
+      </table>
+      <p style="margin-top:18px"><span data-l="en">Your choice is saved in this browser. Project defaults and extra rules go in <code>.agent-office.json</code> under <code>severity</code> — see the reference below.</span><span data-l="uz">Tanlovingiz shu brauzerda saqlanadi. Loyiha standartlari va qo‘shimcha qoidalar <code>.agent-office.json</code> ichidagi <code>severity</code> kalitida — pastdagi ma’lumotnomaga qarang.</span></p>
+    </div>
+  </section>
+
   <section id="reference">
     <div class="wrap">
       <h2 class="s"><span data-l="en">Reference</span><span data-l="uz">Ma’lumotnoma</span></h2>
@@ -292,7 +335,15 @@ footer a { color: #fff; }
     <span class="k">"redis"</span>: <span class="s">"devops"</span>
   },
   <span class="k">"logs"</span>: [{ <span class="k">"path"</span>: <span class="s">"logs/api.log"</span>, <span class="k">"agent"</span>: <span class="s">"backend"</span> }],
-  <span class="k">"allContainers"</span>: false
+  <span class="k">"allContainers"</span>: false,
+  <span class="k">"severity"</span>: {
+    <span class="k">"panicAt"</span>: <span class="s">"major"</span>, <span class="k">"sound"</span>: <span class="s">"critical"</span>,
+    <span class="k">"colorMode"</span>: <span class="s">"status"</span>, <span class="k">"feedMin"</span>: <span class="s">"minor"</span>,
+    <span class="k">"rules"</span>: {
+      <span class="k">"critical"</span>: [<span class="s">"payment gateway down"</span>],
+      <span class="k">"ignore"</span>: [<span class="s">"/api/extension/commands/next"</span>]
+    }
+  }
 }</pre>
           <h3 style="margin-top:28px"><span data-l="en">Watch a terminal command</span><span data-l="uz">Terminal buyrug‘ini kuzatish</span></h3>
 <pre>node &lt;plugin&gt;/office/run.mjs --agent flutter -- flutter run</pre>
