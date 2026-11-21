@@ -44,9 +44,25 @@ export const replayUrl = () => { try { return new URLSearchParams(location.searc
 // real timers, so every video frame shows exactly the events that happened by then.
 const RENDER_MODE = (() => { try { return new URLSearchParams(location.search).has('render'); } catch { return false; } })();
 const queue: { at: number; fire: () => void }[] = [];
+const later: { at: number; fire: () => void }[] = [];
+let renderMs = 0, recordedAt = 0;
+/** The adapter's clock: real time, or in render mode the recording's own time (so a slow render changes nothing). */
+const now = () => (RENDER_MODE ? recordedAt + renderMs : Date.now());
+/** A timer on the adapter's clock. */
+function after(ms: number, fn: () => void) {
+  if (!RENDER_MODE) { setTimeout(fn, ms); return; }
+  later.push({ at: renderMs + ms, fire: fn });
+  later.sort((a, b) => a.at - b.at);
+}
 /** Called by RenderController with the render time in seconds. */
 export function replayAdvance(t: number) {
-  while (queue.length && queue[0].at <= t * 1000) queue.shift()!.fire();
+  renderMs = t * 1000;
+  for (;;) {
+    const q = queue[0], l = later[0];
+    const next = q && q.at <= renderMs && (!l || l.at > renderMs || q.at <= l.at) ? queue : l && l.at <= renderMs ? later : null;
+    if (!next) break;
+    next.shift()!.fire();
+  }
 }
 
 export class PluginAdapter implements AgentDataAdapter {
@@ -60,7 +76,7 @@ export class PluginAdapter implements AgentDataAdapter {
   private timers: ReturnType<typeof setTimeout>[] = [];
   private project: Project | null = null;
   private open = new Map<AgentId, Task & { toolUseId?: string; startedReal: number }>();
-  private calm = new Map<AgentId, ReturnType<typeof setTimeout>>();
+  private calm = new Map<AgentId, object>();
   onStatus?: (s: 'connecting' | 'open' | 'error') => void;
   onTeam?: () => void;
 
@@ -85,6 +101,7 @@ export class PluginAdapter implements AgentDataAdapter {
   private async replay(file: string) {
     try {
       const rec = await fetch(file).then((r) => r.json());
+      recordedAt = Date.parse(rec.recordedAt) || Date.now();
       this.onStatus?.('open');
       // real gaps can be milliseconds; stretch them so people have time to walk
       let at = 0, prev = 0;
@@ -134,15 +151,16 @@ export class PluginAdapter implements AgentDataAdapter {
   }
 
   private log(agentId: AgentId, kind: 'action' | 'task' | 'result' | 'status' | 'error', text: string) {
-    this.ctx.emit({ type: 'log', entry: { id: uid('log'), ts: Date.now(), agentId, kind, text } });
+    this.ctx.emit({ type: 'log', entry: { id: uid('log'), ts: now(), agentId, kind, text } });
   }
   private patch(id: AgentId, patch: Record<string, unknown>) { this.ctx.emit({ type: 'agent.patch', id, patch }); }
   private say(from: AgentId, text: string, to: AgentId | 'all' | 'user' = 'all') {
-    this.ctx.emit({ type: 'message', message: { id: uid('msg'), ts: Date.now(), from, to, text, channel: 'team' } });
+    this.ctx.emit({ type: 'message', message: { id: uid('msg'), ts: now(), from, to, text, channel: 'team' } });
   }
   private settle(id: AgentId, ms: number, patch: Record<string, unknown>) {
-    clearTimeout(this.calm.get(id));
-    this.calm.set(id, setTimeout(() => this.patch(id, patch), ms));
+    const token = {};
+    this.calm.set(id, token);
+    after(ms, () => { if (this.calm.get(id) === token) this.patch(id, patch); });
   }
 
   private finish(seat: AgentId, ok = true) {
@@ -150,7 +168,7 @@ export class PluginAdapter implements AgentDataAdapter {
     if (!t) return;
     this.open.delete(seat);
     const { toolUseId: _a, startedReal: _b, ...task } = t;
-    this.ctx.emit({ type: 'task.upsert', task: { ...task, status: ok ? 'completed' : 'error', progress: 100, completedAt: Date.now() } });
+    this.ctx.emit({ type: 'task.upsert', task: { ...task, status: ok ? 'completed' : 'error', progress: 100, completedAt: now() } });
     this.patch(seat, { status: ok ? 'completed' : 'error', currentTaskId: null, place: 'desk' });
     this.log(seat, ok ? 'result' : 'error', `${ok ? 'Done' : 'Failed'}: ${t.title}`);
     this.say(seat, ok ? `Done: ${t.title} ✅` : `I hit a problem on "${t.title}".`, 'manager');
@@ -182,9 +200,9 @@ export class PluginAdapter implements AgentDataAdapter {
         // a background sub-agent reporting back arrives as a prompt; it is not a new request
         if (/^\s*<task-notification>/.test(ev.prompt ?? '')) { this.log('manager', 'status', 'A sub-agent reported back'); return; }
         const title = short(ev.prompt, 90) || 'New request';
-        this.project = { id: uid('prj'), title, status: 'running', progress: 0, createdAt: Date.now(), taskIds: [] };
+        this.project = { id: uid('prj'), title, status: 'running', progress: 0, createdAt: now(), taskIds: [] };
         emit({ type: 'project.upsert', project: { ...this.project } });
-        emit({ type: 'message', message: { id: uid('msg'), ts: Date.now(), from: 'user', to: 'manager', text: title, channel: 'team' } });
+        emit({ type: 'message', message: { id: uid('msg'), ts: now(), from: 'user', to: 'manager', text: title, channel: 'team' } });
         this.patch('manager', { status: 'thinking', place: 'desk' });
         this.log('manager', 'task', `Request: ${title}`);
         return;
@@ -196,13 +214,13 @@ export class PluginAdapter implements AgentDataAdapter {
           const title = short(ev.input?.description ?? ev.input?.prompt, 70) || 'Sub-agent task';
           const task: Task & { toolUseId?: string; startedReal: number } = {
             id: uid('task'), projectId: this.project?.id ?? null, title, assignee: seat, status: 'running', progress: 10,
-            dependsOn: [], effort: 0, createdAt: Date.now(), startedAt: Date.now(), source: 'plan', toolUseId: ev.tool_use_id, startedReal: Date.now(),
+            dependsOn: [], effort: 0, createdAt: now(), startedAt: now(), source: 'plan', toolUseId: ev.tool_use_id, startedReal: now(),
           };
           this.open.set(seat, task);
           if (this.project) { this.project.taskIds.push(task.id); this.project.status = 'running'; emit({ type: 'project.upsert', project: { ...this.project } }); }
           const { toolUseId: _a, startedReal: _b, ...plain } = task;
           emit({ type: 'task.upsert', task: plain });
-          clearTimeout(this.calm.get(seat));
+          this.calm.delete(seat);
           this.patch(seat, { status: 'working', currentTaskId: task.id, place: 'desk' });
           this.patch('manager', { status: 'working' });
           this.say('manager', `${PROFILES[seat].name}, ${title}`, seat);
@@ -217,7 +235,7 @@ export class PluginAdapter implements AgentDataAdapter {
           const { toolUseId: _a, startedReal: _b, ...plain } = t;
           emit({ type: 'task.upsert', task: plain });
         }
-        clearTimeout(this.calm.get(who));
+        this.calm.delete(who);
         this.patch(who, { status: 'working', place: 'desk' });
         this.log(who, 'action', describe(tool, ev.input));
         return;
@@ -227,7 +245,7 @@ export class PluginAdapter implements AgentDataAdapter {
           // a foreground sub-agent returns here; a background one returns almost at once and ends with SubagentStop
           const seat = seatFor(String(ev.input?.subagent_type ?? ''));
           const t = this.open.get(seat);
-          if (t && Date.now() - t.startedReal > 2500) this.finish(seat, true);
+          if (t && now() - t.startedReal > 2500) this.finish(seat, true);
         }
         return;
       }
@@ -245,7 +263,7 @@ export class PluginAdapter implements AgentDataAdapter {
       case 'Stop':
         if (!this.open.size) {
           if (this.project) {
-            this.project.status = 'completed'; this.project.progress = 100; this.project.completedAt = Date.now();
+            this.project.status = 'completed'; this.project.progress = 100; this.project.completedAt = now();
             emit({ type: 'project.upsert', project: { ...this.project } });
           }
           this.patch('manager', { status: 'completed' });
