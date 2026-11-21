@@ -6,10 +6,7 @@ import Person, { lookFor } from './Person.jsx';
 import { SEV, visibleSev, rank, maxSev } from './severity.js';
 
 const SPEED = 2.6; // katak/sekund
-export const STATE_UZ = {
-  idle: 'bo‘sh', walking: 'yurmoqda', working: 'ishlamoqda', talking: 'gaplashmoqda', thinking: 'o‘ylamoqda',
-  panic: 'XATO!', down: 'ishlamayapti',
-};
+import { STATE_LABEL } from './i18n.js';
 
 export default function Agent({ id }) {
   const a = useOffice((s) => s.agents[id]);
@@ -19,6 +16,7 @@ export default function Agent({ id }) {
   const toWorld = useOffice((s) => s.layout.toWorld);
   const lowLight = useOffice((s) => s.sky.lamps > 0.5);
   const boss = useOffice((s) => s.boss);
+  const cinema = useOffice((s) => s.cinema);
   const settings = useOffice((s) => s.settings);
   // ko'rsatiladigan daraja: panika/ishlamay qolish holatida — kamida signal darajasi
   const rawSev = a ? maxSev(a.sev ?? 'info', a.state === 'panic' ? (a.alarm?.severity ?? 'info') : a.down ? (a.down.severity ?? 'info') : 'info') : 'info';
@@ -125,15 +123,16 @@ export default function Agent({ id }) {
           <meshBasicMaterial color={a.color} transparent opacity={0.9} />
         </mesh>
       )}
-      <Person color={a.color} look={lookFor(id)} pose={pose} headset={id !== 'manager'} tie={id === 'manager'} />
-      <Html position={[0, 2.05, 0]} center distanceFactor={boss ? 6 : 15} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
+      <Person color={a.color} look={lookFor(id)} pose={pose} tie={id === 'manager'} />
+      <Html position={[0, 2.05, 0]} center distanceFactor={boss || cinema ? 6 : 15} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
         <div className="tag-wrap">
           {showBubble && <div className={`bubble ${a.bubbleKind}`}>{a.bubble}</div>}
           <div className={`tag ${tagClass}`}>
             {vis && !bad && <span className="tag-flag">{vis === 'minor' ? '⚠' : '❗'}</span>}
             <span className="dot" style={{ background: a.color }} />
             {a.name}
-            <span className="tag-state">· {STATE_UZ[a.state] ?? a.state}</span>
+            {a.title && <span className="tag-role">{a.title}</span>}
+            <span className="tag-state">· {STATE_LABEL(a.state)}</span>
             {a.errors > 0 && <span className="tag-err">{a.errors}</span>}
           </div>
         </div>

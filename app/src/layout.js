@@ -1,4 +1,5 @@
 // Ofis rejasi generatori. Jamoa (rollar ro'yxati) berilsa, har bir rol uchun alohida xona yasaydi.
+import { tr } from './i18n.js';
 // Xonalar "slot"larga joylashadi va faqat oxiriga qo'shiladi, shuning uchun yangi agent kelganda
 // bino o'ngga kengayadi, mavjud xonalar esa joyidan siljimaydi.
 //
@@ -36,9 +37,9 @@ const RUG = {
   backend: '#8fa4b8', frontend: '#b29bbd', devops: '#8fae99', mobile: '#8fb7c9', qa: '#c9a08f',
   data: '#a39bc4', design: '#c99bb2', docs: '#b9a68a', security: '#b99393', generic: '#93b8b0',
 };
-export const KIND_UZ = {
-  backend: 'Backend', frontend: 'Frontend', devops: 'DevOps', mobile: 'Mobil', qa: 'QA', data: 'Data / ML',
-  design: 'Dizayn', docs: 'Hujjatlar', security: 'Xavfsizlik', generic: 'Jamoa',
+export const KIND_LABEL = {
+  backend: 'Backend', frontend: 'Frontend', devops: 'DevOps', mobile: tr('Mobile'), qa: 'QA', data: 'Data / ML',
+  design: tr('Design'), docs: tr('Docs'), security: tr('Security'), generic: tr('Team'),
 };
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -59,14 +60,14 @@ function slotPos(i) {
 
 export function buildLayout(team) {
   const roles = team.filter((r) => r.id !== 'manager');
-  const slots = [{ kind: 'manager', id: 'manager', name: 'Manager' }, { kind: 'lounge', id: 'lounge', name: 'Dam olish' },
-    { kind: 'meeting', id: 'meeting', name: 'Majlis xonasi' },
+  const slots = [{ kind: 'manager', id: 'manager', name: 'Manager' }, { kind: 'lounge', id: 'lounge', name: tr('Lounge') },
+    { kind: 'meeting', id: 'meeting', name: tr('Meeting room') },
     ...roles.map((r) => ({ kind: r.kind || kindOf(r.id), id: r.id, name: r.name || prettyName(r.id), role: true }))];
   const placed = slots.map((s, i) => ({ ...s, pos: slotPos(i) }));
   const cols = Math.max(2, ...placed.map((s) => s.pos[0] + 1));
   // bo'sh qolgan slotlar — yashil zona
   for (let c = 0; c < cols; c++) for (const row of ['top', 'bottom']) {
-    if (!placed.some((s) => s.pos[0] === c && s.pos[1] === row)) placed.push({ kind: 'garden', id: `garden-${c}`, name: 'Yashil zona', pos: [c, row] });
+    if (!placed.some((s) => s.pos[0] === c && s.pos[1] === row)) placed.push({ kind: 'garden', id: `garden-${c}`, name: tr('Green zone'), pos: [c, row] });
   }
 
   const W = cols * COL + 1;

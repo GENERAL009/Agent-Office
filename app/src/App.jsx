@@ -4,36 +4,33 @@ import { OrbitControls, SoftShadows } from '@react-three/drei';
 import Office from './Office.jsx';
 import Agent from './Agent.jsx';
 import { useOffice } from './store.js';
-import { SEV, SEV_UZ_LOWER, LEVELS, rank, visibleSev, atLeast, maxSev } from './severity.js';
+import { SEV, SEV_LOWER, LEVELS, rank, visibleSev, atLeast, maxSev } from './severity.js';
+import { tr, lang, setLang, LANGS, LOCALE, STATE_LABEL, SERVICE_LABEL } from './i18n.js';
 import { startSim, stopSim } from './sim.js';
 import { startLive, stopLive, handleEvent, resolveServer } from './live.js';
 import { startSun } from './sun.js';
 import { BossController, BossHud } from './Boss.jsx';
 import { replayUrl, startReplay, stopReplay } from './replay.js';
+import { SkyBackdrop, StudioLight, Effects, CinemaCamera } from './Look.jsx';
 
 const CONN = {
-  off: ['Ulanmagan', '#8f9bb3'],
-  connecting: ['Ulanmoqda…', '#e0a03a'],
-  on: ['Server ulangan', '#4cc38a'],
-  replay: ['Yozuv qayta o‘ynatilmoqda', '#7c9cff'],
-  error: ['Server topilmadi — Claude’da /agent-office:office yoki /agent-office:doctor', '#ff5a5f'],
+  off: [tr('Not connected'), '#8f9bb3'],
+  connecting: [tr('Connecting…'), '#e0a03a'],
+  on: [tr('Server connected'), '#4cc38a'],
+  replay: [tr('Replaying a recording'), '#7c9cff'],
+  error: [tr('Server not found — run /agent-office:office or /agent-office:doctor in Claude'), '#ff5a5f'],
 };
-const STATE_UZ = {
-  idle: 'bo‘sh', walking: 'yurmoqda', working: 'ishlamoqda', talking: 'gaplashmoqda', thinking: 'o‘ylamoqda',
-  panic: 'XATO!', down: 'ishlamayapti',
-};
-const SV_UZ = { up: 'ishlayapti', down: 'to‘xtadi', unhealthy: 'sog‘lom emas', restarting: 'qayta yonmoqda', stopped: 'to‘xtatilgan', removed: 'o‘chirilgan' };
 const KIND_ICON = { docker: '🐳', terminal: '⌨', file: '📄' };
-const hm = (d) => (d ? new Date(d).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—');
+const hm = (d) => (d ? new Date(d).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) : '—');
 
 // Live rejimni Claude'siz sinash uchun namunaviy hodisalar
 const DEMO = [
   { hook: 'SessionStart' },
   { hook: 'Service', id: 'docker:demo-api-1', name: 'demo-api-1', kind: 'docker', agent: 'backend', state: 'up', detail: 'Up 1 second' },
-  { hook: 'UserPromptSubmit', prompt: 'Login sahifasi va API qo‘sh' },
-  { hook: 'PreToolUse', tool: 'Agent', tool_use_id: 'demo1', input: { subagent_type: 'backend', description: 'Login API yozish' } },
+  { hook: 'UserPromptSubmit', prompt: tr('Add a login page and an API') },
+  { hook: 'PreToolUse', tool: 'Agent', tool_use_id: 'demo1', input: { subagent_type: 'backend', description: tr('Write the login API') } },
   { hook: 'PreToolUse', tool: 'Read', agent_type: 'backend', input: { file_path: 'src/server/routes.ts' } },
-  { hook: 'PreToolUse', tool: 'Agent', tool_use_id: 'demo2', input: { subagent_type: 'frontend', description: 'Login formasi' } },
+  { hook: 'PreToolUse', tool: 'Agent', tool_use_id: 'demo2', input: { subagent_type: 'frontend', description: tr('Login form') } },
   { hook: 'PreToolUse', tool: 'Edit', agent_type: 'backend', input: { file_path: 'src/server/auth.ts' } },
   { hook: 'PreToolUse', tool: 'Write', agent_type: 'frontend', input: { file_path: 'src/pages/Login.tsx' } },
   { hook: 'PostToolUseFailure', tool: 'Bash', agent_type: 'backend', input: { command: 'npm test' }, error: 'Exit code 1\nError: Cannot find module \'express\'' },
@@ -64,26 +61,26 @@ function SunRow() {
     <div className="sun">
       <div className="sun-top">
         <div className="seg seg3">
-          {[['auto', 'Avto'], ['day', 'Kun'], ['night', 'Tun']].map(([k, l]) => (
+          {[['auto', tr('Auto')], ['day', tr('Day')], ['night', tr('Night')]].map(([k, l]) => (
             <button key={k} className={themeMode === k ? 'on' : ''} onClick={() => setThemeMode(k)}>{l}</button>
           ))}
         </div>
-        <span className="sun-alt" title="Quyosh balandligi">{icon} {Math.round(sky.alt)}°</span>
+        <span className="sun-alt" title={tr('Sun height')}>{icon} {Math.round(sky.alt)}°</span>
       </div>
       {themeMode === 'auto' && (
         <>
           <div className="sun-info">
             {sunInfo ? (
               <>
-                <span>📍 {sunInfo.city || 'Joylashuv'} <em>({sunInfo.source})</em></span>
+                <span>📍 {sunInfo.city || tr('Location')} <em>({tr(sunInfo.source)})</em></span>
                 <span>↑ {hm(sunInfo.sunrise)} · ↓ {hm(sunInfo.sunset)}</span>
               </>
-            ) : <span>Joylashuv aniqlanmoqda…</span>}
+            ) : <span>{tr('Finding your location…')}</span>}
           </div>
           <label className="time">
-            <span>{timeOffsetH === 0 ? 'Hozir' : `${timeOffsetH > 0 ? '+' : ''}${timeOffsetH} soat`} · {hm(sunInfo?.now)}</span>
+            <span>{timeOffsetH === 0 ? tr('Now') : tr('{n} h', { n: `${timeOffsetH > 0 ? '+' : ''}${timeOffsetH}` })} · {hm(sunInfo?.now)}</span>
             <input type="range" min={-12} max={12} step={0.5} value={timeOffsetH} onChange={(e) => setTimeOffset(Number(e.target.value))} />
-            {timeOffsetH !== 0 && <button className="link" onClick={() => setTimeOffset(0)}>Hozirga qaytish</button>}
+            {timeOffsetH !== 0 && <button className="link" onClick={() => setTimeOffset(0)}>{tr('Back to now')}</button>}
           </label>
         </>
       )}
@@ -103,13 +100,13 @@ function BossRow() {
   return (
     <div className="boss-row">
       <button className={`boss-btn ${boss ? 'on' : ''}`} onClick={() => setBoss(!boss)}>
-        👔 {boss ? 'Boshliq rejimidan chiqish' : 'Boshliq rejimi'} <kbd>B</kbd>
+        👔 {boss ? tr('Leave boss mode') : tr('Boss mode')} <kbd>B</kbd>
       </button>
       <div className="boss-name">
-        <input value={bossName} onChange={(e) => setBossName(e.target.value)} placeholder="Ismingiz" maxLength={18} title="Boshliq ismi" />
+        <input value={bossName} onChange={(e) => setBossName(e.target.value)} placeholder={tr('Your name')} maxLength={18} title={tr('Boss name')} />
         {mode === 'sim' && (
           <form onSubmit={add} className="add-role">
-            <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="+ xodim (flutter)" maxLength={20} />
+            <input value={role} onChange={(e) => setRole(e.target.value)} placeholder={tr('+ teammate (flutter)')} maxLength={20} />
           </form>
         )}
       </div>
@@ -130,20 +127,20 @@ function useCounts() {
 function Counts() {
   const c = useCounts();
   const items = ['critical', 'major', 'moderate', 'minor'].filter((k) => c[k]);
-  if (!items.length) return <p className="sub sub-ok">Muammo yo‘q</p>;
+  if (!items.length) return <p className="sub sub-ok">{tr('No problems')}</p>;
   return (
     <p className="counts">
       {items.map((k) => (
-        <span key={k} className={`count sev-${k}`}><i />{c[k]} {SEV_UZ_LOWER[k]}</span>
+        <span key={k} className={`count sev-${k}`}><i />{c[k]} {SEV_LOWER[k]}</span>
       ))}
     </p>
   );
 }
 
-const PANIC_OPTS = [['minor', 'Mayda'], ['moderate', 'O‘rtacha'], ['major', 'Katta'], ['critical', 'Kritik']];
-const SOUND_OPTS = [['off', 'O‘chiq'], ['major', 'Katta'], ['critical', 'Kritik']];
-const COLOR_OPTS = [['status', 'Holat bo‘yicha'], ['red', 'Faqat qizil']];
-const FEED_OPTS = [['info', 'Hammasi'], ['minor', 'Mayda+'], ['moderate', 'O‘rtacha+'], ['major', 'Katta+']];
+const PANIC_OPTS = [['minor', tr('Minor')], ['moderate', tr('Moderate')], ['major', tr('Major')], ['critical', tr('Critical')]];
+const SOUND_OPTS = [['off', tr('Off')], ['major', tr('Major')], ['critical', tr('Critical')]];
+const COLOR_OPTS = [['status', tr('By status')], ['red', tr('Red only')]];
+const FEED_OPTS = [['info', tr('All')], ['minor', tr('Minor+')], ['moderate', tr('Moderate+')], ['major', tr('Major+')]];
 
 function Choice({ id, label, hint, value, options, onChange }) {
   return (
@@ -166,27 +163,27 @@ function ErrorSettings() {
   return (
     <div className={`errs ${open ? 'open' : ''}`}>
       <button type="button" className="errs-head" onClick={toggle} aria-expanded={open}>
-        <b>Xatolar</b>
-        <span className="legend" aria-label="Rang izohi">
-          {['minor', 'moderate', 'major', 'critical'].map((k) => <i key={k} className={`sev-${k}`} title={SEV[k].uz} />)}
+        <b>{tr('Errors')}</b>
+        <span className="legend" aria-label={tr('Color key')}>
+          {['minor', 'moderate', 'major', 'critical'].map((k) => <i key={k} className={`sev-${k}`} title={SEV[k].label} />)}
         </span>
-        <span className="errs-sum">panika: {SEV[settings.panicAt].uz.toLowerCase()}</span>
+        <span className="errs-sum">{tr('panic at: {x}', { x: SEV[settings.panicAt].label.toLowerCase() })}</span>
         <span className="chev">{open ? '▴' : '▾'}</span>
       </button>
       {open && (
         <div className="errs-body">
-          <Choice id="panicAt" label="Panika chegarasi" hint="qizil chiroq, sirena, dam olish xonasi" value={settings.panicAt} options={PANIC_OPTS} onChange={(v) => setSetting('panicAt', v)} />
-          <Choice id="colorMode" label="Rang rejimi" value={settings.colorMode} options={COLOR_OPTS} onChange={(v) => setSetting('colorMode', v)} />
-          <Choice id="sound" label="Ovoz" hint="shu darajadan signal" value={settings.sound} options={SOUND_OPTS} onChange={(v) => setSetting('sound', v)} />
-          <Choice id="feedMin" label="Hodisalar lentasi" hint="pastini yashirish" value={settings.feedMin} options={FEED_OPTS} onChange={(v) => setSetting('feedMin', v)} />
+          <Choice id="panicAt" label={tr('Panic threshold')} hint={tr('red light, siren, lounge')} value={settings.panicAt} options={PANIC_OPTS} onChange={(v) => setSetting('panicAt', v)} />
+          <Choice id="colorMode" label={tr('Color mode')} value={settings.colorMode} options={COLOR_OPTS} onChange={(v) => setSetting('colorMode', v)} />
+          <Choice id="sound" label={tr('Sound')} hint={tr('alarm from this level')} value={settings.sound} options={SOUND_OPTS} onChange={(v) => setSetting('sound', v)} />
+          <Choice id="feedMin" label={tr('Event feed')} hint={tr('hide below')} value={settings.feedMin} options={FEED_OPTS} onChange={(v) => setSetting('feedMin', v)} />
           <ul className="legend-list">
             {LEVELS.map((k) => (
-              <li key={k}><i className={`sev-${k}`} /><b>{SEV[k].uz}</b><span>{LEGEND[k]}</span></li>
+              <li key={k}><i className={`sev-${k}`} /><b>{SEV[k].label}</b><span>{LEGEND[k]}</span></li>
             ))}
           </ul>
           <div className="errs-foot">
-            <span>{fromProject ? 'Standart: .agent-office.json' : 'Tanlov shu brauzerda saqlanadi'}</span>
-            <button type="button" className="link" onClick={resetSettings}>Standartga qaytarish</button>
+            <span>{fromProject ? tr('Defaults: .agent-office.json') : tr('Saved in this browser')}</span>
+            <button type="button" className="link" onClick={resetSettings}>{tr('Reset to defaults')}</button>
           </div>
         </div>
       )}
@@ -195,11 +192,11 @@ function ErrorSettings() {
 }
 
 const LEGEND = {
-  info: 'oddiy log, 2xx/3xx/404',
-  minor: 'ogohlantirish, retry, timeout, 4xx',
-  moderate: 'ERROR qatori, yiqilgan tool, 5xx',
+  info: tr('plain log, 2xx/3xx/404'),
+  minor: tr('warning, retry, timeout, 4xx'),
+  moderate: tr('ERROR line, failed tool, 5xx'),
   major: 'Traceback, …Error:, unhealthy, exit ≠ 0',
-  critical: 'FATAL, PANIC, OOM, DB auth, konteyner yiqildi',
+  critical: tr('FATAL, PANIC, OOM, DB auth, container crashed'),
 };
 
 function Services() {
@@ -210,7 +207,7 @@ function Services() {
   if (!list.length) return null;
   return (
     <div className="services">
-      <h2>Xizmatlar</h2>
+      <h2>{tr('Services')}</h2>
       <ul>
         {list.map((sv) => (
           <li key={sv.id} className={`sv sv-${sv.state} ${visibleSev(sv.severity, settings) ? `sev-${visibleSev(sv.severity, settings)}` : ''}`} title={sv.detail}>
@@ -218,12 +215,25 @@ function Services() {
             <span className="sv-icon">{KIND_ICON[sv.kind] ?? '•'}</span>
             <span className="sv-name">{sv.name}</span>
             <span className="sv-agent" style={{ color: agents[sv.agent]?.color }}>{agents[sv.agent]?.name ?? sv.agent}</span>
-            <span className="sv-state">{SV_UZ[sv.state] ?? sv.state}{sv.restarts > 1 ? ` ×${sv.restarts}` : ''}</span>
+            <span className="sv-state">{SERVICE_LABEL(sv.state)}{sv.restarts > 1 ? ` ×${sv.restarts}` : ''}</span>
           </li>
         ))}
       </ul>
     </div>
   );
+}
+
+// The premium office (built from the user's own Synty pack with /agent-office:premium)
+function PremiumLink() {
+  const [ready, setReady] = useState(null);
+  useEffect(() => {
+    resolveServer().then((base) => fetch(`${base}/health`, { signal: AbortSignal.timeout(1500) })).then((r) => r.json())
+      .then((j) => setReady(!!j.premium)).catch(() => setReady(null));
+  }, []);
+  if (ready === null) return null;
+  return ready
+    ? <a className="premium-link" href="/premium/">✦ {tr('Open the premium office')} ↗</a>
+    : <p className="premium-hint">✦ {tr('Premium 3D office: run /agent-office:premium')}</p>;
 }
 
 function Panel() {
@@ -240,22 +250,25 @@ function Panel() {
       <div className="brand">
         <div className="brand-row">
           <div>
-            <h1>Agent Ofisi</h1>
-            <p className="sub">{working} ta ishlamoqda · {list.length} jami</p>
+            <h1>{tr('Agent Office')}</h1>
+            <p className="sub">{tr('{n} working · {m} total', { n: working, m: list.length })}</p>
             <Counts />
           </div>
-          <button className="icon-btn" onClick={toggleMute} title={muted ? 'Ovozni yoqish' : 'Ovozni o‘chirish'}>{muted ? '🔕' : '🔔'}</button>
+          <div className="lang" role="group" aria-label={tr('Language')}>
+            {LANGS.map((l) => <button key={l} className={lang === l ? 'on' : ''} onClick={() => lang !== l && setLang(l)}>{l.toUpperCase()}</button>)}
+          </div>
+          <button className="icon-btn" onClick={toggleMute} title={muted ? tr('Unmute') : tr('Mute')}>{muted ? '🔕' : '🔔'}</button>
         </div>
         {isReplay && (
           <div className="replay-card">
             <b>▶ {replayInfo.title}</b>
-            <span>{replayInfo.recordedAt} · haqiqiy hook hodisalari</span>
+            <span>{replayInfo.recordedAt} · {tr('real hook events')}</span>
             <div className="replay-bar"><i style={{ width: `${(100 * replayInfo.at) / Math.max(1, replayInfo.total)}%` }} /></div>
           </div>
         )}
         {!isReplay && (
         <div className="seg" role="tablist">
-          <button className={mode === 'sim' ? 'on' : ''} onClick={() => setMode('sim')}>Simulyatsiya</button>
+          <button className={mode === 'sim' ? 'on' : ''} onClick={() => setMode('sim')}>{tr('Simulation')}</button>
           <button className={mode === 'live' ? 'on' : ''} onClick={() => setMode('live')}>Live</button>
         </div>
         )}
@@ -263,9 +276,10 @@ function Panel() {
           <div className="conn">
             <span className="dot" style={{ background: connColor }} />
             {connText}
-            <button className="link" onClick={runDemo}>Sinov hodisalari</button>
+            <button className="link" onClick={runDemo}>{tr('Test events')}</button>
           </div>
         )}
+        <PremiumLink />
         <BossRow />
         <ErrorSettings />
         <SunRow />
@@ -282,10 +296,10 @@ function Panel() {
                 <span className="nm">
                   {a.name}
                   {a.errors > 0 && (
-                    <span className="err-count" onClick={(e) => { e.stopPropagation(); clearErrors(a.id); }} title="Xatolar soni (bosib tozalash)">{a.errors}</span>
+                    <span className="err-count" onClick={(e) => { e.stopPropagation(); clearErrors(a.id); }} title={tr('Error count (click to clear)')}>{a.errors}</span>
                   )}
                 </span>
-                <span className={`st st-${a.down ? 'down' : a.state} ${vis ? `sev-${vis}` : ''}`}>{a.down ? 'ishlamayapti' : a.state === 'panic' ? (SEV[vis ?? 'major'].uz + '!') : vis ? SEV[vis].uz.toLowerCase() : STATE_UZ[a.state] ?? a.state}</span>
+                <span className={`st st-${a.down ? 'down' : a.state} ${vis ? `sev-${vis}` : ''}`}>{a.down ? STATE_LABEL('down') : a.state === 'panic' ? (SEV[vis ?? 'major'].label + '!') : vis ? SEV[vis].label.toLowerCase() : STATE_LABEL(a.state)}</span>
                 <span className="task">
                   {a.down ? `💥 ${a.down.service} ${a.down.reason}` : a.state === 'panic' ? `🔥 ${a.alarm?.text}` : a.task || '—'}
                 </span>
@@ -297,12 +311,12 @@ function Panel() {
         <Services />
 
         <div className="log">
-          <h2>{sel ? `${sel.name} — oxirgi harakatlar` : 'Hodisalar'}</h2>
+          <h2>{sel ? tr('{name} — recent activity', { name: sel.name }) : tr('Events')}</h2>
           <ul>
             {(() => {
               const rows = (sel ? sel.log.map((l) => ({ ...l, who: sel.name, color: sel.color })) : feed)
                 .filter((l) => atLeast(l.severity ?? 'info', settings.feedMin));
-              if (!rows.length) return <li className="empty">{settings.feedMin === 'info' ? 'Hozircha hech narsa yo‘q' : `${SEV[settings.feedMin].uz} va undan yuqori hodisa yo‘q`}</li>;
+              if (!rows.length) return <li className="empty">{settings.feedMin === 'info' ? tr('Nothing yet') : tr('No {level} or higher events', { level: SEV[settings.feedMin].label.toLowerCase() })}</li>;
               return rows.map((l, i) => {
                 const vis = visibleSev(l.severity, settings);
                 return (
@@ -310,7 +324,7 @@ function Panel() {
                     <time>{l.time}</time>
                     <b style={{ color: l.color }}>{l.who}</b>
                     <span>
-                      {vis && <i className="sev-tag">{SEV[vis].uz}</i>}
+                      {vis && <i className="sev-tag">{SEV[vis].label}</i>}
                       {l.source && <i className="src">{l.source}</i>}{l.text}
                       {l.count > 1 && <i className="rep">×{l.count}</i>}
                     </span>
@@ -341,8 +355,8 @@ function AlertBanner() {
         <button key={a.id} className={`alert ${a.down ? 'down' : 'panic'} sev-${visibleSev(sev, settings) ?? 'major'}`} onClick={() => select(a.id)}>
           <span className="alert-dot" />
           <b>{a.name}</b>
-          <em className="alert-sev">{SEV[sev]?.uz}</em>
-          <span>{a.down ? `${a.down.service} ${a.down.reason} — dam olish xonasida` : a.alarm?.text}</span>
+          <em className="alert-sev">{SEV[sev]?.label}</em>
+          <span>{a.down ? tr('{service} {reason} — in the lounge', { service: a.down.service, reason: a.down.reason }) : a.alarm?.text}</span>
         </button>
       ))}
     </div>
@@ -356,17 +370,18 @@ function Lights() {
   const [dx, dy, dz] = sky.sunDir;
   return (
     <>
-      <SoftShadows size={18} samples={10} focus={0.5} />
+      <SoftShadows size={14} samples={12} focus={0.6} />
       <fog attach="fog" args={[sky.horizon, 45 + W, 90 + W * 2]} />
-      <ambientLight intensity={sky.ambient} color={sky.ambientColor} />
+      <ambientLight intensity={sky.ambient * 0.6} color={sky.ambientColor} />
       <hemisphereLight args={[sky.hemiTop, sky.hemiBottom, sky.hemiI]} />
       <directionalLight
         position={[dx * (half + 10), dy * (half + 10), dz * (half + 10)]}
         intensity={sky.sunI}
         color={sky.sunColor}
         castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
+        shadow-mapSize={[4096, 4096]}
+        shadow-bias={-0.0003}
+        shadow-normalBias={0.02}
         shadow-camera-left={-half}
         shadow-camera-right={half}
         shadow-camera-top={half}
@@ -416,15 +431,19 @@ export default function App() {
         <Canvas
           shadows
           dpr={[1, 2]}
-          gl={{ alpha: true }}
-          camera={{ position: [0, 27, 22], fov: 42, far: 400 }}
+          gl={{ antialias: false, powerPreference: 'high-performance', stencil: false }}
+          camera={{ position: [9, 21, 25], fov: 34, near: 0.5, far: 400 }}
           onPointerMissed={() => { const s = useOffice.getState(); if (s.selected) s.select(s.selected); }}
         >
+          <SkyBackdrop />
+          <StudioLight />
           <Lights />
           <Office />
           {ids.split(',').map((id) => <Agent key={id} id={id} />)}
           <OrbitControls makeDefault target={[0, 0, 0.5]} maxPolarAngle={1.2} minDistance={8} maxDistance={45} enableDamping dampingFactor={0.08} />
           <BossController />
+          <CinemaCamera />
+          <Effects />
         </Canvas>
         <AlertBanner />
         <BossHud />

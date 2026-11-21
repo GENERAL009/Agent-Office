@@ -5,10 +5,11 @@ import { useOffice } from './store.js';
 import { SEV, visibleSev } from './severity.js';
 import Decor from './Details.jsx';
 import Windows from './Windows.jsx';
+import { tr } from './i18n.js';
 
 export const C = {
-  wall: '#f5f3ef', glass: '#cfe6f5', frame: '#2b2f36', deskTop: '#f7f7f5', metal: '#1f232a',
-  screenOff: '#0f1218', chair: '#2a2e36', oak: '#c9a27a',
+  wall: '#f3eee6', cap: '#3a3f48', glass: '#d6ebf7', frame: '#565e6a', deskTop: '#f4f1ec', metal: '#2a2e35',
+  screenOff: '#0f1218', chair: '#2f343d', oak: '#c99f76',
 };
 const center = (a, b) => (a + b) / 2;
 
@@ -18,12 +19,12 @@ function useWoodTexture(W, H) {
     const c = document.createElement('canvas');
     c.width = 512; c.height = 512;
     const g = c.getContext('2d');
-    const rows = 16, plankW = 512 / rows;
+    const rows = 12, plankW = 512 / rows;
     for (let r = 0; r < rows; r++) {
       let x = -Math.random() * 300;
       while (x < 512) {
         const len = 160 + Math.random() * 220;
-        g.fillStyle = `hsl(${28 + Math.random() * 7}, ${34 + Math.random() * 10}%, ${64 + Math.random() * 12}%)`;
+        g.fillStyle = `hsl(${29 + Math.random() * 5}, ${38 + Math.random() * 8}%, ${66 + Math.random() * 8}%)`;
         g.fillRect(x, r * plankW, len, plankW);
         g.globalAlpha = 0.07;
         for (let i = 0; i < 6; i++) { g.fillStyle = '#5a3a1e'; g.fillRect(x, r * plankW + Math.random() * plankW, len, 1); }
@@ -61,7 +62,7 @@ function useTerminal(agent, enabled, sevFill) {
     g.fillRect(0, 0, 512, 26);
     g.fillStyle = '#0b1017';
     g.font = '600 17px "JetBrains Mono", ui-monospace, monospace';
-    g.fillText(`${agent?.name ?? ''} — ${panic ? 'XATO!' : 'terminal'}`, 10, 19);
+    g.fillText(`${agent?.name ?? ''} — ${panic ? tr('ERROR!') : 'terminal'}`, 10, 19);
     g.font = '15px "JetBrains Mono", ui-monospace, monospace';
     const lines = (log ?? []).slice(0, 13).reverse();
     lines.forEach((l, i) => {
@@ -80,14 +81,15 @@ function Walls({ L }) {
   return L.wallSegments.map((s, i) => {
     const len = s.b - s.a + 1;
     const [x, z] = s.dir === 'h' ? L.toWorld([center(s.a, s.b), s.at]) : L.toWorld([s.at, center(s.a, s.b)]);
-    const h = s.outer ? 1.15 : 1.5;
+    const h = s.outer ? 1.3 : 1.5;
     const t = s.outer ? 0.28 : 0.08;
     const size = s.dir === 'h' ? [len, t] : [t, len];
     if (s.outer) {
       return (
         <group key={i} position={[x, 0, z]}>
-          <mesh position-y={h / 2} castShadow receiveShadow><boxGeometry args={[size[0], h, size[1]]} /><meshStandardMaterial color={C.wall} roughness={0.9} /></mesh>
-          <mesh position-y={h + 0.02}><boxGeometry args={[size[0] + 0.01, 0.04, size[1] + 0.01]} /><meshStandardMaterial color={C.oak} roughness={0.6} /></mesh>
+          <mesh position-y={h / 2} castShadow receiveShadow><boxGeometry args={[size[0], h, size[1]]} /><meshStandardMaterial color={C.wall} roughness={0.92} /></mesh>
+          <mesh position-y={h + 0.015}><boxGeometry args={[size[0] + 0.01, 0.03, size[1] + 0.01]} /><meshStandardMaterial color={C.cap} roughness={0.7} /></mesh>
+          <mesh position-y={0.06}><boxGeometry args={[size[0] + 0.02, 0.12, size[1] + 0.02]} /><meshStandardMaterial color="#e2dbd0" roughness={0.8} /></mesh>
         </group>
       );
     }
@@ -95,14 +97,14 @@ function Walls({ L }) {
       <group key={i} position={[x, 0, z]}>
         <mesh position-y={h / 2} renderOrder={2}>
           <boxGeometry args={[size[0], h, size[1]]} />
-          <meshStandardMaterial color={C.glass} transparent opacity={0.3} roughness={0.05} metalness={0.1} depthWrite={false} />
+          <meshStandardMaterial color={C.glass} transparent opacity={0.16} roughness={0.02} metalness={0.2} envMapIntensity={2.5} depthWrite={false} />
         </mesh>
-        <mesh position-y={h}><boxGeometry args={[size[0] + 0.02, 0.05, size[1] + 0.02]} /><meshStandardMaterial color={C.frame} /></mesh>
-        <mesh position-y={0.03}><boxGeometry args={[size[0] + 0.02, 0.06, size[1] + 0.02]} /><meshStandardMaterial color={C.frame} /></mesh>
-        <mesh position-y={0.85}><boxGeometry args={[size[0], 0.12, size[1] + 0.005]} /><meshStandardMaterial color="#ffffff" transparent opacity={0.45} depthWrite={false} /></mesh>
+        <mesh position-y={h}><boxGeometry args={[size[0] + 0.02, 0.035, size[1] + 0.02]} /><meshStandardMaterial color={C.frame} metalness={0.6} roughness={0.35} /></mesh>
+        <mesh position-y={0.03}><boxGeometry args={[size[0] + 0.02, 0.06, size[1] + 0.02]} /><meshStandardMaterial color={C.frame} metalness={0.6} roughness={0.35} /></mesh>
+        <mesh position-y={0.85}><boxGeometry args={[size[0], 0.1, size[1] + 0.005]} /><meshStandardMaterial color="#ffffff" transparent opacity={0.32} depthWrite={false} /></mesh>
         {Array.from({ length: Math.floor(len / 2) + 1 }).map((_, k) => {
           const off = -len / 2 + Math.min(k * 2, len);
-          return <mesh key={k} position={s.dir === 'h' ? [off, h / 2, 0] : [0, h / 2, off]}><boxGeometry args={[0.06, h, 0.1]} /><meshStandardMaterial color={C.frame} /></mesh>;
+          return <mesh key={k} position={s.dir === 'h' ? [off, h / 2, 0] : [0, h / 2, off]}><boxGeometry args={s.dir === 'h' ? [0.035, h, 0.05] : [0.05, h, 0.035]} /><meshStandardMaterial color={C.frame} metalness={0.6} roughness={0.35} /></mesh>;
         })}
       </group>
     );
@@ -303,12 +305,19 @@ function Lounge({ L }) {
 }
 
 function Plants({ L }) {
-  const pot = useMemo(() => new THREE.CylinderGeometry(0.22, 0.18, 0.5, 20), []);
-  const potMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f2f0ec', roughness: 0.5 }), []);
-  const leaf = useMemo(() => new THREE.IcosahedronGeometry(0.34, 1), []);
-  const leafMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#4f9a5b', flatShading: true, roughness: 0.8 }), []);
-  const leaf2Mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3a7d48', flatShading: true, roughness: 0.8 }), []);
-  const parts = [[pot, potMat, 0.25, [1, 1, 1]], [leaf, leafMat, 0.85, [1, 1.5, 1]], [leaf, leaf2Mat, 1.3, [0.7, 1.1, 0.7]]];
+  const pot = useMemo(() => new THREE.CylinderGeometry(0.23, 0.17, 0.46, 32), []);
+  const potMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#ece7df', roughness: 0.45 }), []);
+  const soil = useMemo(() => new THREE.CylinderGeometry(0.2, 0.2, 0.02, 24), []);
+  const soilMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#4a3626', roughness: 1 }), []);
+  const leaf = useMemo(() => new THREE.IcosahedronGeometry(0.3, 4), []);
+  const leafMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#5aa166', roughness: 0.75 }), []);
+  const leaf2Mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3f8350', roughness: 0.75 }), []);
+  const leaf3Mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#79b86e', roughness: 0.75 }), []);
+  const parts = [
+    [pot, potMat, 0.23, [1, 1, 1]], [soil, soilMat, 0.45, [1, 1, 1]],
+    [leaf, leaf2Mat, 0.78, [1.05, 1.25, 1.05]], [leaf, leafMat, 1.12, [0.85, 1.05, 0.85]],
+    [leaf, leaf3Mat, 1.4, [0.55, 0.75, 0.55]],
+  ];
   return parts.map(([g, m, y, s], k) => <Instanced key={`${k}-${L.key}`} L={L} cells={L.plants} geometry={g} material={m} y={y} scale={s} />);
 }
 

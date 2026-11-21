@@ -1,10 +1,17 @@
 // Umumiy sozlamalar va yordamchilar (faqat Node'ning o'z modullari, hech qanday paket kerak emas).
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const UI_DIR = path.join(HERE, '..', 'ui');
+// Premium office: its UI ships with the plugin; its 3D models are built on the user's own machine
+// from their own Synty POLYGON Office pack (/agent-office:premium) and never leave it.
+export const PREMIUM_UI_DIR = path.join(HERE, '..', 'ui-premium');
+export const PREMIUM_DIR = process.env.AGENT_OFFICE_PREMIUM_DIR || path.join(os.homedir(), '.agent-office', 'premium');
+export const MODELS_DIR = path.join(PREMIUM_DIR, 'models');
+export const premiumReady = () => fs.existsSync(path.join(MODELS_DIR, 'manifest.json'));
 
 // Konteyner yoki terminal nomidan agentni taxmin qilish
 export function guessAgent(name = '') {

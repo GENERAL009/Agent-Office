@@ -2,6 +2,7 @@
 // vaqti-vaqti bilan xato va konteyner yiqilishi bo'ladi.
 import { useOffice } from './store.js';
 import { severityOf } from './severity.js';
+import { tr } from './i18n.js';
 
 const S = () => useOffice.getState();
 const L = () => S().layout;
@@ -10,37 +11,37 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const WORK = {
   backend: {
-    tasks: ['Login API', 'Users migratsiyasi', 'JWT tekshiruvi', 'Buyurtmalar endpointi', 'Kesh qatlami'],
+    tasks: ['Login API', 'Users migration', 'JWT check', 'Orders endpoint', 'Cache layer'],
     acts: ['Read src/server/routes.ts', 'Edit src/server/auth.ts', 'Bash npm test -- auth', 'Grep "userId"', 'Write migrations/004_users.sql'],
     errors: ['TypeError: Cannot read properties of undefined (reading \'id\')', 'ECONNREFUSED 127.0.0.1:5432', 'Test failed: auth.spec.ts (3 failing)'],
   },
   frontend: {
-    tasks: ['Login sahifasi', 'Dashboard jadvali', 'Dark mode', 'Forma validatsiyasi', 'Mobil menyu'],
+    tasks: ['Login page', 'Dashboard table', 'Dark mode', 'Form validation', 'Mobile menu'],
     acts: ['Read src/pages/Login.tsx', 'Edit src/components/Table.tsx', 'Bash npm run lint', 'Write src/hooks/useAuth.ts'],
     errors: ['Module not found: Can\'t resolve \'./Button\'', 'Hydration failed: server/client mismatch', 'ESLint: 4 errors'],
   },
   devops: {
-    tasks: ['Docker image', 'CI pipeline', 'Nginx sozlamasi', 'Monitoring', 'Backup skripti'],
+    tasks: ['Docker image', 'CI pipeline', 'Nginx config', 'Monitoring', 'Backup script'],
     acts: ['Edit Dockerfile', 'Write .github/workflows/ci.yml', 'Bash docker build .', 'Edit deploy/nginx.conf'],
     errors: ['docker build failed: exit code 2', 'nginx: [emerg] unknown directive', 'CI job "test" failed'],
   },
   mobile: {
-    tasks: ['Login ekrani', 'Push bildirishnomalar', 'Offline kesh', 'Riverpod state', 'Android build'],
+    tasks: ['Login screen', 'Push notifications', 'Offline cache', 'Riverpod state', 'Android build'],
     acts: ['Edit lib/screens/login_screen.dart', 'Bash flutter test', 'Read pubspec.yaml', 'Bash flutter analyze', 'Write lib/providers/auth_provider.dart'],
     errors: ['RenderFlex overflowed by 42 pixels', 'Gradle task assembleDebug failed', 'Null check operator used on a null value'],
   },
   qa: {
-    tasks: ['E2E testlar', 'Regressiya', 'Login sinovi', 'Yuklama testi'],
+    tasks: ['E2E tests', 'Regression', 'Login test', 'Load test'],
     acts: ['Bash npx playwright test', 'Write tests/e2e/login.spec.ts', 'Read reports/junit.xml'],
     errors: ['3 tests failed in login.spec.ts', 'Timeout 30000ms exceeded'],
   },
   data: {
-    tasks: ['Model trening', 'Ma\'lumot tozalash', 'Feature engineering', 'Eval'],
+    tasks: ['Model training', 'Data cleaning', 'Feature engineering', 'Eval'],
     acts: ['Bash python train.py', 'Edit notebooks/eda.ipynb', 'Read data/schema.json'],
     errors: ['CUDA out of memory', 'KeyError: \'label\''],
   },
   generic: {
-    tasks: ['Vazifa', 'Refaktoring', 'Kod ko‘rib chiqish', 'Hujjat yozish'],
+    tasks: ['Task', 'Refactoring', 'Code review', 'Writing docs'],
     acts: ['Read README.md', 'Edit src/index.ts', 'Bash npm test', 'Grep "TODO"'],
     errors: ['Command failed with exit code 1'],
   },
@@ -68,12 +69,12 @@ export function startSim() {
       const w = workFor(a.kind);
       await settle(id);
       if (!alive()) return;
-      const task = pick(w.tasks);
+      const task = tr(pick(w.tasks));
       S().patch(id, { task });
       await toDesk(id);
       if (!alive()) return;
-      S().say(id, `${task} ustida ishlayapman`);
-      S().log(id, `Vazifa: ${task}`);
+      S().say(id, tr('Working on {task}', { task }));
+      S().log(id, tr('Task: {task}', { task }));
       const steps = Math.floor(rand(3, 7));
       for (let i = 0; i < steps && alive(); i++) {
         await wait(rand(1500, 3200));
@@ -85,13 +86,13 @@ export function startSim() {
       }
       if (!alive()) return;
       if (busy(id)) continue;
-      S().log(id, `✓ ${task} tayyor`);
-      S().say(id, 'Tayyor!', 2000, 'ok');
+      S().log(id, tr('✓ {task} done', { task }));
+      S().say(id, tr('Done!'), 2000, 'ok');
       await wait(1200);
       if (!alive() || busy(id)) continue;
       const r = Math.random();
       if (r < 0.35) {
-        S().patch(id, { task: 'Qahva tanaffusi' });
+        S().patch(id, { task: tr('Coffee break') });
         await walk(id, L().lounge.coffeeSpot, { state: 'idle' });
         if (!busy(id)) S().say(id, '☕', 2500);
         await wait(rand(3000, 5000));
@@ -99,9 +100,9 @@ export function startSim() {
         await settle(id);
         await wait(rand(2000, 4000));
       } else if (r < 0.6) {
-        S().patch(id, { task: 'Majlis' });
+        S().patch(id, { task: tr('Meeting') });
         await walk(id, pick(L().meeting.seats), { state: 'talking' });
-        if (!busy(id)) S().say(id, pick(['Reliz qachon?', 'API sxemasi kelishildimi?', 'Testlar o‘tdi']), 3000);
+        if (!busy(id)) S().say(id, tr(pick(['When do we ship?', 'Did we agree on the API schema?', 'Tests passed'])), 3000);
         await wait(rand(4000, 6500));
       }
     }
@@ -112,8 +113,8 @@ export function startSim() {
     await toDesk(id);
     while (alive()) {
       S().setState(id, 'thinking');
-      S().patch(id, { task: 'Rejalashtirish' });
-      S().log(id, 'Vazifalarni taqsimlamoqda');
+      S().patch(id, { task: tr('Planning') });
+      S().log(id, tr('Splitting up the work'));
       await wait(rand(5000, 9000));
       if (!alive()) return;
       const candidates = S().team.map((r) => r.id).filter((x) => S().agents[x] && !S().agents[x].down);
@@ -122,18 +123,18 @@ export function startSim() {
       const t = S().agents[target];
       const d = L().desks[t.deskId];
       if (!d) continue;
-      S().patch(id, { task: `${t.name} bilan gaplashish` });
+      S().patch(id, { task: tr('Talking to {name}', { name: t.name }) });
       await walk(id, [d.seat[0] + 1, d.seat[1] + 1], { state: 'talking' });
       if (!alive()) return;
-      S().say(id, `${t.name}, holat qanday?`, 2500);
+      S().say(id, tr('{name}, how is it going?', { name: t.name }), 2500);
       await wait(2200);
       if (!alive()) return;
-      if (!busy(target)) S().say(target, t.task ? `${t.task} — deyarli tayyor` : 'Hozir boshlayman', 2500);
-      S().log(id, `${t.name} bilan sinxronlash`);
+      if (!busy(target)) S().say(target, t.task ? tr('{task} — almost done', { task: t.task }) : tr('Starting now'), 2500);
+      S().log(id, tr('Sync with {name}', { name: t.name }));
       await wait(2600);
       await toDesk(id);
       S().setState(id, 'working');
-      S().patch(id, { task: 'Kod ko‘rib chiqish' });
+      S().patch(id, { task: tr('Code review') });
       await wait(rand(4000, 7000));
     }
   }

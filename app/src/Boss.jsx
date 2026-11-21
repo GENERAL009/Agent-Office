@@ -6,11 +6,13 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { useOffice, positions } from './store.js';
 import Person from './Person.jsx';
+import { overviewPose } from './Look.jsx';
+import { tr, STATE_LABEL } from './i18n.js';
 
 const WALK = 3.2;
 const RUN = 5.6;
 const R = 0.28; // to'qnashuv radiusi
-const BOSS_LOOK = { skin: '#e8b98f', hair: '#1b1b1f', pants: '#1e2533', trim: '#fff' };
+const BOSS_LOOK = { skin: '#e8b98f', hair: '#1b1b1f', pants: '#1e2533', trim: '#fff', style: 'side', shoes: '#111' };
 const greeted = {};
 
 const keys = {};
@@ -36,7 +38,7 @@ function screensOf(L, agents) {
       list.push({ kind: 'services', id: 'services', label: 'Monitoring', at: [cx, it.cells[0][1] + 1] });
     }
   }
-  if (L.meeting.screen) list.push({ kind: 'feed', id: 'feed', label: 'Majlis ekrani', at: [L.meeting.screen.x, 14.6] });
+  if (L.meeting.screen) list.push({ kind: 'feed', id: 'feed', label: tr('Meeting screen'), at: [L.meeting.screen.x, 14.6] });
   return list;
 }
 
@@ -59,6 +61,7 @@ export function BossController() {
       keys[k] = true;
       const s = useOffice.getState();
       if (k === 'b' && !s.boss) { s.setBoss(true); return; }
+      if (k === 'c' && !s.boss) { s.setCinema(!s.cinema); return; }
       if (!s.boss) return;
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
       if (k === 'e' && s.nearScreen) s.setScreenOpen(!s.screenOpen);
@@ -84,8 +87,9 @@ export function BossController() {
       controls.minDistance = 2.5; controls.maxDistance = 16; controls.maxPolarAngle = 1.45;
     } else {
       const f = Math.max(1, L.W / 34);
-      controls.target.set(0, 0, 0.5);
-      camera.position.set(0, 27 * f, 22 * f);
+      const o = overviewPose(L);
+      controls.target.copy(o.target);
+      camera.position.copy(o.pos);
       controls.minDistance = 8; controls.maxDistance = 45 * f; controls.maxPolarAngle = 1.2;
     }
     controls.update();
@@ -153,10 +157,10 @@ export function BossController() {
           greeted[a.id] = now;
           ap.waveUntil = now + 1600;
           const who = st.bossName;
-          const text = a.state === 'panic' ? `${who}, yordam bering! ${a.alarm?.text ?? ''}`
+          const text = a.state === 'panic' ? tr('{who}, help! {text}', { who, text: a.alarm?.text ?? '' })
             : a.down ? `${who}, ${a.down.service} ${a.down.reason} 😢`
-              : a.state === 'working' ? `Salom, ${who}! ${a.task || 'ishlayapman'} ustidaman`
-                : `Salom, ${who}! 👋`;
+              : a.state === 'working' ? tr('Hi {who}! On it: {task}', { who, task: a.task || tr('work') })
+                : tr('Hi {who}! 👋', { who });
           st.say(a.id, text, 3200, a.state === 'panic' || a.down ? 'error' : '');
         }
       }
@@ -172,7 +176,7 @@ export function BossController() {
       </mesh>
       <Person color="#1e2533" look={BOSS_LOOK} pose={pose} headset={false} boss />
       <Html position={[0, 2.05, 0]} center distanceFactor={6} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
-        <div className="tag boss-tag">👔 {bossName} <span className="tag-state">· siz</span></div>
+        <div className="tag boss-tag">👔 {bossName} <span className="tag-state">· {tr('you')}</span></div>
       </Html>
     </group>
   );
@@ -189,17 +193,17 @@ export function BossHud() {
   return (
     <>
       <div className="boss-help">
-        <b>Boshliq rejimi</b>
-        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> yurish</span>
-        <span><kbd>Shift</kbd> yugurish</span>
-        <span>🖱 kamera</span>
-        <span><kbd>E</kbd> monitor</span>
-        <button onClick={() => setBoss(false)}>Chiqish <kbd>Esc</kbd></button>
+        <b>{tr('Boss mode')}</b>
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> {tr('walk')}</span>
+        <span><kbd>Shift</kbd> {tr('run')}</span>
+        <span>🖱 {tr('camera')}</span>
+        <span><kbd>E</kbd> {tr('monitor')}</span>
+        <button onClick={() => setBoss(false)}>{tr('Exit')} <kbd>Esc</kbd></button>
       </div>
 
       {nearScreen && !screenOpen && (
         <button className="boss-prompt" onClick={() => setScreenOpen(true)}>
-          <kbd>E</kbd> {nearScreen.label} monitorini ochish
+          <kbd>E</kbd> {tr('Open the {label} monitor', { label: nearScreen.label })}
         </button>
       )}
 
@@ -213,9 +217,9 @@ export function BossHud() {
             </div>
             {agent && (
               <div className="term-status">
-                <span>holat: <b>{agent.down ? 'ishlamayapti' : agent.state}</b></span>
-                <span>vazifa: <b>{agent.task || '—'}</b></span>
-                <span>xatolar: <b className={agent.errors ? 'err' : ''}>{agent.errors}</b></span>
+                <span>{tr('state:')} <b>{STATE_LABEL(agent.down ? 'down' : agent.state)}</b></span>
+                <span>{tr('task:')} <b>{agent.task || '—'}</b></span>
+                <span>{tr('errors:')} <b className={agent.errors ? 'err' : ''}>{agent.errors}</b></span>
                 {agent.down && <span className="err">💥 {agent.down.service} {agent.down.reason}</span>}
               </div>
             )}
@@ -223,12 +227,12 @@ export function BossHud() {
               <div className="tl cursor">▋</div>
               {nearScreen.kind === 'desk' && (agent?.log.length ? agent.log.map((l, i) => (
                 <div key={i} className={`tl ${LV[l.level] ?? ''}`}><time>{l.time}</time>{l.source && <em>[{l.source}]</em>} {l.text}</div>
-              )) : <div className="tl dim">$ hozircha log yo‘q_</div>)}
+              )) : <div className="tl dim">{tr('$ no logs yet_')}</div>)}
               {nearScreen.kind === 'services' && (Object.values(services).length ? Object.values(services).map((sv) => (
                 <div key={sv.id} className={`tl ${['down', 'unhealthy', 'restarting'].includes(sv.state) ? 'err' : ''}`}>
                   <em>{sv.kind}</em> {sv.name.padEnd(22, ' ')} {sv.state.padEnd(11, ' ')} → {agents[sv.agent]?.name ?? sv.agent} <span className="dim">{sv.detail}</span>
                 </div>
-              )) : <div className="tl dim">$ kuzatilayotgan xizmat yo‘q_</div>)}
+              )) : <div className="tl dim">{tr('$ no services watched_')}</div>)}
               {nearScreen.kind === 'feed' && feed.map((l, i) => (
                 <div key={i} className={`tl ${LV[l.level] ?? ''}`}><time>{l.time}</time><b style={{ color: l.color }}>{l.who}</b> {l.text}</div>
               ))}

@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import { useOffice } from './store.js';
 import { rank } from './severity.js';
+import { tr } from './i18n.js';
 
 const METAL = '#1f232a';
 const OAK = '#c9a27a';
@@ -414,7 +415,7 @@ function Runner({ L }) {
 // Kirish eshigi (chap tashqi devorda) va gilamcha
 function Entrance({ L }) {
   const [x, z] = L.toWorld([0, 10.5]);
-  const mat = useMemo(() => textTexture('KIRISH', { w: 512, h: 128, color: '#f4f1ea', font: '800 72px Inter, system-ui, sans-serif' }), []);
+  const mat = useMemo(() => textTexture(tr('ENTRANCE'), { w: 512, h: 128, color: '#f4f1ea', font: '800 72px Inter, system-ui, sans-serif' }), []);
   return (
     <group position={[x, 0, z]}>
       {[-1.05, 1.05].map((dz) => (

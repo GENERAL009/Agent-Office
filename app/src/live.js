@@ -2,6 +2,8 @@
 // agent harakatiga aylantiradi.
 import { useOffice } from './store.js';
 import { fromLegacy, isLevel, severityOf } from './severity.js';
+import { tr } from './i18n.js';
+import { personName } from './crew.js';
 
 // Ofis serverning o'zidan ochilsa — o'sha manzil; Vite dev serverdan ochilsa — 4777 port
 // Ofis serverining o'zidan ochilgan bo'lsa — o'sha manzil. Vite dev (5173) yoki fayldan ochilsa —
@@ -40,7 +42,7 @@ function describe(tool, input = {}) {
   if (input.pattern) return `${tool} "${short(input.pattern, 30)}"`;
   if (input.url) return `${tool} ${short(input.url, 40)}`;
   if (input.query) return `${tool} "${short(input.query, 36)}"`;
-  return tool || 'harakat';
+  return tool || tr('action');
 }
 
 // Plugin agentlari "agent-office:backend" ko'rinishida keladi — ofisda "backend"
@@ -56,14 +58,14 @@ function startSub(agent, task) {
   if (a.state === 'working' || (a.state === 'walking' && a.after?.state === 'working')) return;
   S().patch(agent, { task });
   S().goToDesk(agent, { state: 'working' });
-  S().log(agent, `Vazifa oldi: ${task}`);
+  S().log(agent, tr('Took a task: {task}', { task }));
 }
 
 function finishSub(agent) {
   const s = S();
   if (!s.agents[agent]) return;
-  s.log(agent, '✓ Vazifa tugadi');
-  s.say(agent, 'Tayyor!', 2500, 'ok');
+  s.log(agent, tr('✓ Task done'));
+  s.say(agent, tr('Done!'), 2500, 'ok');
   s.patch(agent, { task: '' });
   setTimeout(() => S().goToLounge(agent), 1200);
 }
@@ -104,35 +106,35 @@ export function handleEvent(e) {
     case 'SessionStart': {
       running = [];
       s.goToDesk('manager', { state: 'idle' });
-      s.say('manager', 'Sessiya boshlandi');
-      s.log('manager', 'Sessiya boshlandi');
+      s.say('manager', tr('Session started'));
+      s.log('manager', tr('Session started'));
       break;
     }
     case 'SessionEnd': {
       s.setState('manager', 'idle');
-      s.say('manager', 'Sessiya yopildi 👋');
-      s.log('manager', 'Sessiya yopildi');
+      s.say('manager', tr('Session closed 👋'));
+      s.log('manager', tr('Session closed'));
       break;
     }
     case 'UserPromptSubmit': {
-      const p = short(e.prompt, 80) || 'Yangi so‘rov';
+      const p = short(e.prompt, 80) || tr('New request');
       s.goToDesk('manager', { state: 'thinking' });
       s.patch('manager', { task: p });
       s.say('manager', p, 5000);
-      s.log('manager', `So‘rov: ${p}`);
+      s.log('manager', tr('Request: {p}', { p }));
       break;
     }
     case 'SubagentStart': {
-      if (e.agent_type) startSub(norm(e.agent_type), S().agents[norm(e.agent_type)]?.task || 'Vazifa');
+      if (e.agent_type) startSub(norm(e.agent_type), S().agents[norm(e.agent_type)]?.task || tr('Task'));
       break;
     }
     case 'PreToolUse': {
       if (SPAWN_TOOLS.has(tool)) {
         const agent = norm(input.subagent_type) || 'general-purpose';
         running.push({ id: e.tool_use_id, agent });
-        const task = short(input.description || input.prompt, 50) || 'Vazifa';
-        s.say(norm(e.agent_type) || 'manager', `${agent}: ${task}`, 4000);
-        s.log(norm(e.agent_type) || 'manager', `→ ${agent}ga topshirdi: ${task}`);
+        const task = short(input.description || input.prompt, 50) || tr('Task');
+        s.say(norm(e.agent_type) || 'manager', `${personName(agent)}, ${task}`, 4000);
+        s.log(norm(e.agent_type) || 'manager', tr('→ handed to {agent}: {task}', { agent: personName(agent), task }));
         startSub(agent, task);
         break;
       }
@@ -164,28 +166,28 @@ export function handleEvent(e) {
       if (e.is_interrupt) break;
       const who = actorOf(e);
       const sev = isLevel(e.severity) ? e.severity : (tool === 'Bash' ? 'major' : 'moderate');
-      s.alert(who, sev, `${tool} yiqildi: ${short(firstLine(e.error), 80)}`, tool);
+      s.alert(who, sev, tr('{tool} failed: {err}', { tool, err: short(firstLine(e.error), 80) }), tool);
       if (SPAWN_TOOLS.has(tool)) {
         const idx = running.findIndex((r) => r.id && r.id === e.tool_use_id);
         const r = idx >= 0 ? running.splice(idx, 1)[0] : null;
-        if (r) S().alert(r.agent, 'major', 'Sub-agent xato bilan tugadi', tool);
+        if (r) S().alert(r.agent, 'major', tr('Sub-agent ended with an error'), tool);
       }
       break;
     }
     case 'SubagentStop': {
       const who = norm(e.agent_type) || running[running.length - 1]?.agent;
-      if (who) s.log(who, 'Sub-agent to‘xtadi');
+      if (who) s.log(who, tr('Sub-agent stopped'));
       break;
     }
     case 'Stop': {
       s.setState('manager', 'idle');
       s.patch('manager', { task: '' });
-      s.say('manager', 'Javob tayyor ✓', 3000, 'ok');
-      s.log('manager', 'Javob tayyor');
+      s.say('manager', tr('Answer ready ✓'), 3000, 'ok');
+      s.log('manager', tr('Answer ready'));
       break;
     }
     case 'StopFailure': {
-      s.alert('manager', isLevel(e.severity) ? e.severity : 'major', `Javob yiqildi: ${short(firstLine(e.error), 70) || 'API xatosi'}`, 'Claude');
+      s.alert('manager', isLevel(e.severity) ? e.severity : 'major', tr('Answer failed: {err}', { err: short(firstLine(e.error), 70) || tr('API error') }), 'Claude');
       break;
     }
     default: break;

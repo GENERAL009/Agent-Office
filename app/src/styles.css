@@ -103,6 +103,7 @@ body { background: var(--bg); }
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 .tag-state { font-weight: 400; color: #a3abba; }
+.tag-role { font-weight: 600; font-size: 10px; letter-spacing: 0.04em; color: #11141b; background: rgba(255, 255, 255, 0.86); border-radius: 999px; padding: 1px 7px; }
 .bubble {
   max-width: 230px; background: #fff; color: #11141b; font: 500 12px/1.35 'Inter', system-ui, sans-serif;
   padding: 7px 11px; border-radius: 12px; position: relative; text-align: center;
@@ -327,3 +328,11 @@ body { background: var(--bg); }
 .bubble[class*="sev-"] { background: var(--sev); color: #fff; }
 .bubble[class*="sev-"]::after { border-top-color: var(--sev); }
 .bubble.sev-minor { color: #2a2000; }
+
+/* ---------- EN | UZ ---------- */
+.lang { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); margin-left: auto; margin-right: 6px; align-self: center; }
+.lang button { font: 700 10px 'Inter', system-ui, sans-serif; letter-spacing: 0.06em; color: #8f9bb3; background: none; border: 0; padding: 4px 7px; border-radius: 999px; cursor: pointer; }
+.lang button.on { color: #11141b; background: #f4f1ec; }
+.premium-link { display: block; text-align: center; font: 700 12px 'Inter', system-ui, sans-serif; color: #11141b; background: linear-gradient(90deg, #f0b43a, #f7d27a); border-radius: 10px; padding: 8px 10px; text-decoration: none; margin: 8px 0 2px; }
+.premium-link:hover { filter: brightness(1.05); }
+.premium-hint { font: 500 11px 'Inter', system-ui, sans-serif; color: #8f9bb3; margin: 8px 0 2px; }

@@ -3,12 +3,13 @@
 //  - POST /event      hook'lar, run.mjs va kuzatuvchilardan hodisa qabul qiladi (bitta yoki massiv)
 //  - GET  /events     brauzerga SSE oqimi
 //  - GET  /           tayyor 3D ofis (ui/ papkasi)
+//  - GET  /premium/    premium ofis (ui-premium/), /models/ — foydalanuvchining o'z kompyuterida qurilgan modellar
 //  - GET  /health     holat
 // Qo'shimcha: Docker konteynerlari va log fayllarini kuzatadi.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { UI_DIR, loadConfig, resolveAgent, makeClassifier } from './common.mjs';
+import { UI_DIR, PREMIUM_UI_DIR, MODELS_DIR, premiumReady, loadConfig, resolveAgent, makeClassifier } from './common.mjs';
 import { settingsFrom } from './severity.mjs';
 import { PORTS, probe, writeState, clearState } from './net.mjs';
 import { startDocker } from './watch-docker.mjs';
@@ -35,6 +36,7 @@ let listening = { port: null, host: null, urls: [], tried: [] };
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
+  '.jpg': 'image/jpeg', '.gltf': 'model/gltf+json', '.glb': 'model/gltf-binary', '.bin': 'application/octet-stream',
 };
 const CORS = {
   'access-control-allow-origin': '*',
@@ -42,8 +44,32 @@ const CORS = {
   'access-control-allow-headers': 'content-type',
 };
 
+function sendFile(res, file) {
+  res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' });
+  fs.createReadStream(file).pipe(res);
+}
+
 function serveStatic(req, res) {
   const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  // the user's own converted models (premium); a missing file is a plain 404
+  if (url.startsWith('/models/')) {
+    const file = path.normalize(path.join(MODELS_DIR, url.slice('/models/'.length)));
+    if (!file.startsWith(MODELS_DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404).end(); return; }
+    sendFile(res, file);
+    return;
+  }
+  if (url === '/premium' || url.startsWith('/premium/')) {
+    if (!premiumReady()) {
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
+        .end('The premium office is not built yet. In Claude Code run: /agent-office:premium <folder of your Synty POLYGON Office pack>');
+      return;
+    }
+    let file = path.normalize(path.join(PREMIUM_UI_DIR, url.slice('/premium'.length) || '/'));
+    if (!file.startsWith(PREMIUM_UI_DIR)) { res.writeHead(403).end(); return; }
+    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PREMIUM_UI_DIR, 'index.html');
+    sendFile(res, file);
+    return;
+  }
   let file = path.normalize(path.join(UI_DIR, url === '/' ? 'index.html' : url));
   if (!file.startsWith(UI_DIR)) { res.writeHead(403).end(); return; }
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(UI_DIR, 'index.html');
@@ -90,6 +116,7 @@ function handler(req, res) {
     res.writeHead(200, { ...CORS, 'content-type': 'application/json' }).end(JSON.stringify({
       name: 'agent-office', ok: true, pid: process.pid, project, clients: clients.size, docker: status.docker, logs: status.logs,
       config: config.file, services: services.size, port: listening.port, urls: listening.urls, tried: listening.tried,
+      premium: premiumReady(),
     }));
     return;
   }

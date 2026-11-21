@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
-import { HERE } from './common.mjs';
+import { HERE, premiumReady } from './common.mjs';
 import { findServer, readState, clearState, LOG_FILE, RUN_DIR, STATE_FILE, PORTS, DEFAULT_PORT } from './net.mjs';
 
 export async function ensureServer(projectDir, waitMs = 4000) {
@@ -122,8 +122,10 @@ async function main() {
       await doctor(projectDir);
       process.exit(1);
     }
-    const [main, ...alt] = info.urls?.length ? info.urls : [info.base];
-    console.log(`Agent Office ${started ? 'started' : 'is already running'}: ${main}`);
+    // once the premium office is built (/agent-office:premium), open that one
+    const page = premiumReady() && !flags.has('--free') ? '/premium/' : '';
+    const [main, ...alt] = (info.urls?.length ? info.urls : [info.base]).map((u) => u + page);
+    console.log(`Agent Office ${started ? 'started' : 'is already running'}: ${main}${page ? '  (premium office; the free one is at the same address without /premium)' : ''}`);
     if (alt.length) console.log(`If that does not open, try: ${alt.join('  or  ')}`);
     if (info.port && info.port !== DEFAULT_PORT) console.log(`Port ${DEFAULT_PORT} was not usable (${(info.tried ?? []).join(', ') || 'busy'}), so port ${info.port} is used.`);
     console.log(`Project: ${info.project}`);
@@ -132,8 +134,9 @@ async function main() {
   } else if (cmd === 'open') {
     const info = await findServer({ thorough: true });
     if (!info) { console.log('Agent Office is not running. Start it with: ctl.mjs start --open'); process.exit(1); }
-    openBrowser(info.urls?.[0] ?? info.base);
-    console.log(`Opened ${info.urls?.[0] ?? info.base}`);
+    const url = (info.urls?.[0] ?? info.base) + (premiumReady() && !flags.has('--free') ? '/premium/' : '');
+    openBrowser(url);
+    console.log(`Opened ${url}`);
   } else if (cmd === 'stop') {
     const info = await findServer({ thorough: true });
     const pid = info?.pid ?? readState()?.pid;

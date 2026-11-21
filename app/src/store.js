@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { personName } from './crew.js';
+import { tr, LOCALE } from './i18n.js';
 import { buildLayout, kindOf, KIND_COLOR, prettyName } from './layout.js';
 import { findPath } from './pathfinding.js';
 import { computeSky } from './sun.js';
@@ -30,10 +32,10 @@ function makeAgent(def, L, index, inLounge) {
   const start = def.spawn ?? (inLounge && def.id !== 'manager' ? spots[index % spots.length] : L.desks[deskId]?.seat ?? spots[0]);
   positions[def.id] = { x: start[0], z: start[1], rot: Math.PI };
   return {
-    id: def.id, name: def.name, role: def.role ?? def.kind, color: def.color, kind: def.kind,
+    id: def.id, name: personName(def.id), title: def.name, role: def.role ?? def.kind, color: def.color, kind: def.kind,
     deskId, index,
     state: inLounge && def.id !== 'manager' ? 'idle' : 'working',
-    task: inLounge ? '' : 'Ish boshlanmoqda',
+    task: inLounge ? '' : tr('Starting work'),
     bubble: '', bubbleUntil: 0, bubbleKind: '',
     path: [], pathId: 0, after: null,
     log: [], alarm: null, down: null, errors: 0, resume: null, calmState: 'idle', sev: 'info',
@@ -41,11 +43,11 @@ function makeAgent(def, L, index, inLounge) {
 }
 
 function agentsFor(team, L, inLounge) {
-  const defs = [{ id: 'manager', name: 'Manager', kind: 'manager', color: '#e0a03a', role: 'Asosiy Claude' }, ...team];
+  const defs = [{ id: 'manager', name: 'Manager', kind: 'manager', color: '#e0a03a', role: tr('Main Claude') }, ...team];
   return Object.fromEntries(defs.map((d, i) => [d.id, makeAgent(d, L, i, inLounge)]));
 }
 
-const stamp = () => new Date().toLocaleTimeString('uz-UZ', { hour12: false });
+const stamp = () => new Date().toLocaleTimeString(LOCALE, { hour12: false });
 const calmTimers = {};
 const initialTeam = normTeam(DEFAULT_TEAM);
 const initialLayout = buildLayout(initialTeam);
@@ -80,7 +82,11 @@ export const useOffice = create((set, get) => ({
   resetSettings: () => { saveLocalSettings({}); set({ settings: mergeSettings(get().serverSeverity, {}) }); },
   // boshliq rejimi
   boss: false,
-  bossName: (() => { try { return localStorage.getItem('agent-office-boss') || 'Boshliq'; } catch { return 'Boshliq'; } })(),
+  bossName: (() => { try { return localStorage.getItem('agent-office-boss') || tr('Boss'); } catch { return tr('Boss'); } })(),
+  cinema: (() => { try { return new URLSearchParams(location.search).get('cinema') === '1'; } catch { return false; } })(),
+  cinemaShot: null, // { kind: 'overview' } | { kind: 'follow', id, dist?, height? } — pins one shot
+  setCinema: (cinema) => set({ cinema, cinemaShot: null }),
+  setCinemaShot: (cinemaShot) => set({ cinemaShot }),
   nearScreen: null, // { kind: 'desk'|'services'|'feed', id, label }
   screenOpen: false,
 
@@ -125,8 +131,8 @@ export const useOffice = create((set, get) => ({
     set({ team, layout: L, agents });
     // yangi xodimlar eshikdan kirib, o'z xonasiga boradi
     for (const r of add) {
-      get().say(r.id, `Salom! Men ${r.name} 👋`, 3500, 'ok');
-      get().log(r.id, `Jamoaga qo'shildi: ${r.name}`);
+      get().say(r.id, tr("Hi! I'm {name} 👋", { name: personName(r.id) }), 3500, 'ok');
+      get().log(r.id, tr('Joined the team: {name}', { name: r.name }));
       setTimeout(() => get().goToDesk(r.id, { state: 'idle' }), 600);
     }
   },
@@ -327,14 +333,14 @@ export const useOffice = create((set, get) => ({
     if (!a) return;
     if (bad.length && !a.down) {
       const sv = bad[0];
-      const why = sv.state === 'unhealthy' ? 'sog‘lom emas' : sv.state === 'restarting' ? 'qayta-qayta yiqilmoqda' : 'to‘xtadi';
+      const why = sv.state === 'unhealthy' ? tr('is unhealthy') : sv.state === 'restarting' ? tr('keeps crashing') : tr('went down');
       get().patch(id, { down: { service: sv.name, reason: why, severity: sv.severity }, alarm: null, path: [], resume: null });
       get().say(id, `💥 ${sv.name} ${why}`, 6000, `sev-${sv.severity ?? 'major'}`);
       const seats = get().layout.lounge.couchSeats;
       get().goTo(id, seats[a.index % seats.length], { face: 'desk', state: 'down' }, true);
     } else if (!bad.length && a.down) {
       get().patch(id, { down: null });
-      get().say(id, `✅ ${trigger?.name ?? 'xizmat'} tiklandi`, 4000, 'ok');
+      get().say(id, tr('✅ {name} is back', { name: trigger?.name ?? tr('service') }), 4000, 'ok');
       get().goToDesk(id, { state: get().mode === 'sim' ? 'working' : 'idle' });
     } else if (bad.length && a.down && a.down.service !== bad[0].name) {
       get().patch(id, { down: { ...a.down, service: bad[0].name, severity: bad[0].severity } });

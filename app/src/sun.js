@@ -1,6 +1,7 @@
 // Haqiqiy quyosh: joylashuvni aniqlaydi (GPS → IP → taxminiy), quyosh chiqishi/botishini
 // ochiq API'dan oladi (sunrise-sunset.org) va quyosh balandligiga qarab osmon rangini hisoblaydi.
 import { useOffice } from './store.js';
+import { lang } from './i18n.js';
 
 // ---------- Quyosh holati (SunCalc algoritmi asosida) ----------
 const rad = Math.PI / 180;
@@ -82,14 +83,14 @@ export function computeSky(alt, az) {
   const sunColor = alt < 10 ? mix('#ff7a3d', '#ffd9ae', smooth(0, 10, alt)) : mix('#ffd9ae', '#fff6ea', smooth(10, 30, alt));
   return {
     alt, az, top, horizon, lamps, night: alt < -2,
-    sunDir, sunColor, sunI: 2.1 * dayK,
+    sunDir, sunColor, sunI: 2.7 * dayK,
     moonI: 0.35 * lamps,
     ambient: 0.12 + 0.3 * dayK,
     ambientColor: mix('#7f95d8', '#ffffff', dayK),
     hemiTop: mix('#2c3a66', top, dayK),
     hemiBottom: mix('#0b0d12', '#c7b9a4', dayK),
-    hemiI: 0.18 + 0.45 * dayK,
-    ground: mix('#20242c', '#b8bec7', dayK),
+    hemiI: 0.2 + 0.6 * dayK,
+    ground: mix('#1d2129', '#d9d2c6', dayK),
   };
 }
 
@@ -103,7 +104,7 @@ const getJSON = async (url, ms = 6000) => {
 
 async function cityName(lat, lng) {
   try {
-    const j = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=uz`);
+    const j = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${lang}`);
     return j.city || j.locality || j.principalSubdivision || null;
   } catch { return null; }
 }
@@ -138,9 +139,9 @@ async function locate() {
   try { return await byIp(); } catch {}
   try {
     const saved = JSON.parse(localStorage.getItem(LS_KEY));
-    if (saved?.lat) return { ...saved, source: 'saqlangan' };
+    if (saved?.lat) return { ...saved, source: 'saved' };
   } catch {}
-  return { lat: 41.31, lng: 69.28, city: 'Toshkent', source: 'taxminiy' };
+  return { lat: 41.31, lng: 69.28, city: 'Tashkent', source: 'approximate' };
 }
 
 async function fetchTimes(lat, lng, date) {
