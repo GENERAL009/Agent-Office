@@ -48,6 +48,9 @@ process.stdin.on('end', async () => {
       is_interrupt: e.is_interrupt,
       stderr: e.tool_name === 'Bash' ? bashTrouble(e.tool_response) : undefined,
       cwd: e.cwd,
+      // a background sub-agent (Task/Agent tool) returns at once; it really ends later with SubagentStop
+      async: hook === 'PostToolUse' && e.tool_response && typeof e.tool_response === 'object'
+        && (e.tool_response.isAsync === true || e.tool_response.status === 'async_launched') ? true : undefined,
     };
     if (ev.stderr) {
       const s = severityOf(ev.stderr) ?? 'info';

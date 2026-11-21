@@ -49,7 +49,8 @@ function describe(tool, input = {}) {
 const norm = (n) => (n ? String(n).split(':').pop() : n);
 
 let running = []; // ishga tushgan sub-agentlar (agent_type kelmasa zaxira)
-const actorOf = (e) => norm(e.agent_type) || (running.length ? running[running.length - 1].agent : 'manager');
+// a background sub-agent always sends agent_type; the fallback is only for foreground ones
+const actorOf = (e) => { const fg = running.filter((r) => !r.async); return norm(e.agent_type) || (fg.length ? fg[fg.length - 1].agent : 'manager'); };
 
 function startSub(agent, task) {
   const s = S();
@@ -153,6 +154,11 @@ export function handleEvent(e) {
     case 'PostToolUse': {
       if (SPAWN_TOOLS.has(tool)) {
         const idx = running.findIndex((r) => r.id && r.id === e.tool_use_id);
+        if (e.async) {
+          // launched in the background: it keeps working and ends with SubagentStop
+          if (idx >= 0) running[idx].async = true;
+          break;
+        }
         const r = idx >= 0 ? running.splice(idx, 1)[0] : running.pop();
         if (r) finishSub(r.agent);
         s.setState(norm(e.agent_type) || 'manager', 'thinking');
@@ -178,7 +184,10 @@ export function handleEvent(e) {
     }
     case 'SubagentStop': {
       const who = norm(e.agent_type) || running[running.length - 1]?.agent;
-      if (who) s.log(who, tr('Sub-agent stopped'));
+      // a background sub-agent finishes here (a foreground one finishes at its PostToolUse)
+      const idx = running.findIndex((r) => r.async && r.agent === who);
+      if (idx >= 0) { running.splice(idx, 1); finishSub(who); }
+      else if (who) s.log(who, tr('Sub-agent stopped'));
       break;
     }
     case 'Stop': {

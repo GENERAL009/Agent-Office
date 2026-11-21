@@ -25,6 +25,7 @@ interface HookEvent {
   state?: string;
   agent?: string;
   ts?: number;
+  async?: boolean;
 }
 
 const SPAWN = new Set(['Task', 'Agent']);
@@ -242,7 +243,8 @@ export class PluginAdapter implements AgentDataAdapter {
       }
       case 'PostToolUse': {
         if (SPAWN.has(tool)) {
-          // a foreground sub-agent returns here; a background one returns almost at once and ends with SubagentStop
+          // a foreground sub-agent returns here; a background one returns at once (async) and ends with SubagentStop
+          if (ev.async) return;
           const seat = seatFor(String(ev.input?.subagent_type ?? ''));
           const t = this.open.get(seat);
           if (t && now() - t.startedReal > 2500) this.finish(seat, true);
@@ -257,9 +259,13 @@ export class PluginAdapter implements AgentDataAdapter {
         this.settle(who, 4000, { status: 'working' });
         return;
       }
-      case 'SubagentStop':
-        this.finish(seatFor(ev.agent_type), true);
+      case 'SubagentStop': {
+        const seat = seatFor(ev.agent_type);
+        if (this.open.has(seat)) this.finish(seat, true);
+        // its task was already closed: just make sure nobody is left "working"
+        else if (seat !== 'manager') this.settle(seat, 800, { status: 'idle' });
         return;
+      }
       case 'Stop':
         if (!this.open.size) {
           if (this.project) {
