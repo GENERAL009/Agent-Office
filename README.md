@@ -86,6 +86,23 @@ Open `http://127.0.0.1:4777`. **Simulation** mode runs a pretend team with stage
 | `/agent-office:setup` | Reads the project, writes `.claude/agents/*.md` and `.agent-office.json`, builds the rooms |
 | `/agent-office:office-watch <agent> <command…>` | Runs a command and streams its output to an agent |
 | `/agent-office:office-stop` | Stops the server |
+| `/agent-office:premium <pack folder>` | Builds the premium office from your own Synty POLYGON Office pack (see below) |
+| <kbd>C</kbd> in the office | Cinema camera: drifts around and flies to whoever is busy |
+
+## Premium office
+
+The free office is drawn in code. The premium office is a full building — open-plan workspace, manager office, meeting room, kitchen, lounge, game room, server room, a Cyber Security room — with real 3D furniture and animated people, and the same live Claude Code events. Walk in as yourself (<kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>) and talk to the agents.
+
+Its 3D models come from the **Synty POLYGON Office** asset pack, which is paid and licensed per user, so it is **not** in this repository. You bring your own copy and one command converts it on your computer:
+
+1. Buy and download [POLYGON Office](https://syntystore.com/) from Synty and unzip it.
+2. Install [Blender](https://www.blender.org/download/) 4.2 or newer (free).
+3. Optional, for real animation: download these free clips from [Mixamo](https://www.mixamo.com/) as *FBX Binary, Without Skin* into `~/.agent-office/premium/mixamo`: Breathing Idle, Typing, Sitting Idle, Sitting Talking, Walking, Running, Talking, Waving, Drinking, Clapping, Jumping. Without them people use simple built-in poses.
+4. In Claude Code: `/agent-office:premium ~/Downloads/POLYGON_Office` (your folder).
+
+It takes about a minute. The models go to `~/.agent-office/premium/models` and never leave your computer. After that `/agent-office:office` opens the premium office at `/premium/`; the free one stays at the same address without `/premium`.
+
+Each role of your team gets a seat in the premium office (front-end and design roles sit in the studio, QA and testers at the QA desk, research and docs at the research desk, everything else in the developer seat), a name and a matching character. Empty seats stay empty.
 
 ## Boss mode
 
@@ -249,6 +266,9 @@ npm install
 npm run dev                         # interface with hot reload at http://localhost:5173
 node ../plugin/office/server.mjs    # in a second terminal
 npm run build                       # writes the production interface to plugin/ui — commit it
+
+cd ../premium-app                   # the premium office (needs your converted models for anything but the UI)
+npm install && npm run build        # writes plugin/ui-premium — commit it
 claude plugin validate ../plugin
 ```
 
