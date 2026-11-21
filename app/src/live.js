@@ -118,7 +118,7 @@ export function handleEvent(e) {
     }
     case 'UserPromptSubmit': {
       // a background sub-agent reporting back arrives as a prompt; it is not a new request
-      if (/^\s*<task-notification>/.test(e.prompt || '')) break;
+      if (/^\s*<(task-notification|agent-message)\b/.test(e.prompt || '')) break;
       const p = short(e.prompt, 80) || tr('New request');
       s.goToDesk('manager', { state: 'thinking' });
       s.patch('manager', { task: p });

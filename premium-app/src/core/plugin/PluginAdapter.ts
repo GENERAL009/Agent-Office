@@ -198,7 +198,7 @@ export class PluginAdapter implements AgentDataAdapter {
         return;
       case 'UserPromptSubmit': {
         // a background sub-agent reporting back arrives as a prompt; it is not a new request
-        if (/^\s*<task-notification>/.test(ev.prompt ?? '')) { this.log('manager', 'status', 'A sub-agent reported back'); return; }
+        if (/^\s*<(task-notification|agent-message)\b/.test(ev.prompt ?? '')) { this.log('manager', 'status', 'A sub-agent reported back'); return; }
         const title = short(ev.prompt, 90) || 'New request';
         this.project = { id: uid('prj'), title, status: 'running', progress: 0, createdAt: now(), taskIds: [] };
         emit({ type: 'project.upsert', project: { ...this.project } });
