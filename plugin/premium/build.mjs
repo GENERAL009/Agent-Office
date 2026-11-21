@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Builds the premium office from YOUR copy of the Synty POLYGON Office pack.
-//   node build.mjs <pack folder> [--mixamo <folder>] [--blender <path>]
-// <pack folder>: the unzipped pack (any folder that contains SourceFiles/Characters and SourceFiles/Textures).
+//   node build.mjs [pack folder or .zip] [--mixamo <folder>] [--blender <path>]
+// pack: the pack's zip, or the unzipped folder (anything that contains SourceFiles/Characters and SourceFiles/Textures).
+//       Left out: Downloads, Desktop and Documents are searched.
 // --mixamo: optional folder with the Mixamo clips listed below (FBX Binary, "Without Skin").
 //           Without them people use built-in procedural poses.
 // Output goes to ~/.agent-office/premium/models (or $AGENT_OFFICE_PREMIUM_DIR/models) and stays on this computer.
@@ -41,9 +42,37 @@ function findSource(dir, depth = 0) {
   }
   return null;
 }
-if (!packArg) fail('Give the folder of your Synty POLYGON Office pack.', 'Example: /agent-office:premium ~/Downloads/POLYGON_Office');
-const SRC = findSource(path.resolve(packArg.replace(/^~(?=$|\/)/, os.homedir())));
-if (!SRC) fail(`No Synty POLYGON Office source files found in ${packArg}.`, 'Unzip the pack and point to its folder (it contains SourceFiles/Characters and SourceFiles/Textures).');
+const HOME_DIRS = ['Downloads', 'Desktop', 'Documents'].map((d) => path.join(os.homedir(), d));
+const expand = (p) => path.resolve(p.replace(/^~(?=$|[\/\\])/, os.homedir()));
+function unzip(zip) {
+  const dest = path.join(PREMIUM_DIR, 'pack');
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(dest, { recursive: true });
+  console.log(`… Unzipping ${path.basename(zip)}`);
+  const r = process.platform === 'win32'
+    ? spawnSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${dest}' -Force`], { stdio: 'ignore' })
+    : spawnSync('unzip', ['-q', '-o', zip, '-d', dest], { stdio: 'ignore' });
+  if (r.status !== 0) fail(`Could not unzip ${zip}.`, 'Unzip it yourself and give the folder instead.');
+  return dest;
+}
+function findZip() {
+  for (const d of HOME_DIRS) {
+    if (!fs.existsSync(d)) continue;
+    const z = fs.readdirSync(d).filter((f) => /polygon.?office.*\.zip$/i.test(f)).sort();
+    if (z.length) return path.join(d, z[0]);
+  }
+  return null;
+}
+let SRC = null;
+if (packArg) {
+  const p = expand(packArg);
+  SRC = p.toLowerCase().endsWith('.zip') && fs.existsSync(p) ? findSource(unzip(p)) : findSource(p);
+} else {
+  for (const d of HOME_DIRS) if (!SRC) SRC = findSource(d, 2);   // an unzipped pack in Downloads, Desktop or Documents
+  if (!SRC) { const z = findZip(); if (z) SRC = findSource(unzip(z)); }
+}
+if (!SRC) fail(packArg ? `No Synty POLYGON Office source files found in ${packArg}.` : 'Could not find the Synty POLYGON Office pack in Downloads, Desktop or Documents.',
+  'Download POLYGON Office from your Synty account (the "Source Files" zip) and give its zip or folder, e.g. /agent-office:premium ~/Downloads/POLYGON_Office_SourceFiles.zip');
 ok(`Pack: ${SRC}`);
 
 // ---------- 2. Blender ----------
@@ -65,9 +94,10 @@ ok(`${ver}`);
 
 // ---------- 3. Mixamo clips (optional) ----------
 function findClips() {
-  const dirs = [mixamoArg, path.join(PREMIUM_DIR, 'mixamo'), path.join(path.dirname(SRC), 'mixamo'), path.join(path.dirname(path.dirname(SRC)), 'mixamo')];
+  const dirs = [mixamoArg && expand(mixamoArg), path.join(PREMIUM_DIR, 'mixamo'), path.join(path.dirname(SRC), 'mixamo'), path.join(path.dirname(path.dirname(SRC)), 'mixamo'),
+    ...HOME_DIRS.flatMap((h) => (fs.existsSync(h) ? fs.readdirSync(h).filter((f) => /mixamo|animation/i.test(f)).map((f) => path.join(h, f)) : [])), ...HOME_DIRS];
   for (const d of dirs) {
-    if (!d || !fs.existsSync(d)) continue;
+    if (!d || !fs.existsSync(d) || !fs.statSync(d).isDirectory()) continue;
     const files = fs.readdirSync(d).filter((f) => f.toLowerCase().endsWith('.fbx'));
     const found = CLIPS.map((c) => files.find((f) => f.toLowerCase().replace(/[_-]/g, ' ').startsWith(c.toLowerCase())));
     if (found.some(Boolean)) return { dir: d, files: found.filter(Boolean).map((f) => path.join(d, f)), missing: CLIPS.filter((_, i) => !found[i]) };
