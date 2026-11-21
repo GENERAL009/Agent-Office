@@ -1,7 +1,7 @@
 {
   "name": "agent-office",
   "displayName": "Agent Office 3D",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "A 3D office in your browser for Claude Code. /agent-office:setup reads your project and gives every area its own agent and room. Agents show tool calls, Docker containers and terminal logs live; errors make them panic, stopped containers send them to the lounge. Walk around in boss mode and read their monitors. Optional premium office: /agent-office:premium builds a full walk-in building from your own Synty POLYGON Office pack.",
   "author": {
     "name": "GENERAL009"
