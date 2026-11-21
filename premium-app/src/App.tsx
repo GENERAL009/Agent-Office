@@ -23,7 +23,7 @@ export default function App() {
   // While a camera shot plays (for recording), hide every overlay and the 3D labels; Esc stops it.
   useEffect(() => {
     const labels = document.getElementById('label-layer');
-    if (labels) labels.style.visibility = shot ? 'hidden' : '';
+    if (labels) labels.style.visibility = shot && RENDER?.ui !== 'full' ? 'hidden' : '';
     if (!shot) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') useOffice.getState().playShot(null); };
     window.addEventListener('keydown', onKey);
@@ -45,7 +45,8 @@ export default function App() {
   }, [mode]);
 
   // Render mode (video frames for ep7): just the 3D scene, or with ui=life the walk-in HUD and chat as well.
-  if (RENDER) {
+  // ui=full: the whole interface stays on screen while shots play (for recording the live panels)
+  if (RENDER && RENDER.ui !== 'full') {
     if (RENDER.ui !== 'life') return <OfficeScene />;
     return (
       <div className="relative h-full w-full">
@@ -64,7 +65,7 @@ export default function App() {
         <OfficeScene />
       </div>
 
-      <div className={`pointer-events-none absolute inset-0 z-10 flex flex-col ${shot ? 'invisible' : ''}`}>
+      <div className={`pointer-events-none absolute inset-0 z-10 flex flex-col ${shot && RENDER?.ui !== 'full' ? 'invisible' : ''}`}>
         <TopBar />
         <div className="flex min-h-0 flex-1 gap-3 px-4 pb-3 pt-3">
           {dashboardOpen && <Dashboard />}

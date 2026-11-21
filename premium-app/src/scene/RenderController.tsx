@@ -15,6 +15,7 @@
 //   &ext=1           don't post frames; a headless-browser driver screenshots the page after each frame instead
 //   &tag=b           add this suffix to every output name (to keep a second take of a shot)
 //   &fov=58          vertical field of view for every shot and the walk (e.g. for a 4:5 render, &w=1080&h=1350)
+//   &ui=full         keep the whole interface (panels, labels) on screen while shots play; use with &ext=1
 //   &dpr=2           render at 2× the pixel size (w=1920&h=1080&dpr=2 gives 3840 × 2160 frames, same framing)
 import { useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
@@ -24,6 +25,7 @@ import { POV, povAt, type PovSegment } from './povScript';
 import { player } from '../world/runtime';
 import { SimulationAdapter } from '../core/simulation/SimulationAdapter';
 import type { AgentId } from '../core/types';
+import { replayAdvance } from '../core/plugin/PluginAdapter';
 
 export const RENDER = (() => {
   const p = new URLSearchParams(location.search);
@@ -66,7 +68,7 @@ export function RenderController() {
     if (!RENDER) return;
     let cancelled = false;
     const labels = document.getElementById('label-layer');
-    if (labels && RENDER.ui !== 'life') labels.style.display = 'none';
+    if (labels && RENDER.ui !== 'life' && RENDER.ui !== 'full') labels.style.display = 'none';
     const run = async () => {
       const { gl, advance } = get();
       const dt = 1 / RENDER.fps;
@@ -76,6 +78,7 @@ export function RenderController() {
         t += d;
         simAcc += d;
         while (simAcc >= SimulationAdapter.TICK) { simAcc -= SimulationAdapter.TICK; sim().tick?.(); renderStatus.simTime += SimulationAdapter.TICK; }
+        replayAdvance(t);
         advance(t);
       };
       const grab = async (shotId: string, i: number) => {

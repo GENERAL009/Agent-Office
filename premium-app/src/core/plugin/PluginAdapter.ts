@@ -40,6 +40,15 @@ function describe(tool = '', input: Record<string, unknown> = {}) {
 
 export const replayUrl = () => { try { return new URLSearchParams(location.search).get('replay'); } catch { return null; } };
 
+// In render mode (?render=…, frames stepped by hand) a recording plays on the render clock instead of
+// real timers, so every video frame shows exactly the events that happened by then.
+const RENDER_MODE = (() => { try { return new URLSearchParams(location.search).has('render'); } catch { return false; } })();
+const queue: { at: number; fire: () => void }[] = [];
+/** Called by RenderController with the render time in seconds. */
+export function replayAdvance(t: number) {
+  while (queue.length && queue[0].at <= t * 1000) queue.shift()!.fire();
+}
+
 export class PluginAdapter implements AgentDataAdapter {
   readonly kind = 'claude-code' as const;
   readonly label = 'Claude Code (Agent Office plugin)';
@@ -82,7 +91,8 @@ export class PluginAdapter implements AgentDataAdapter {
       for (const { t, ev } of rec.events as { t: number; ev: HookEvent }[]) {
         const gap = Math.min(Math.max(t - prev, ev.hook === 'PreToolUse' ? 900 : 300), 6000);
         prev = t; at += gap;
-        this.timers.push(setTimeout(() => this.handle(ev), at));
+        if (RENDER_MODE) queue.push({ at, fire: () => this.handle(ev) });
+        else this.timers.push(setTimeout(() => this.handle(ev), at));
       }
     } catch { this.onStatus?.('error'); }
   }
@@ -169,6 +179,8 @@ export class PluginAdapter implements AgentDataAdapter {
         this.log('manager', 'status', 'Session closed');
         return;
       case 'UserPromptSubmit': {
+        // a background sub-agent reporting back arrives as a prompt; it is not a new request
+        if (/^\s*<task-notification>/.test(ev.prompt ?? '')) { this.log('manager', 'status', 'A sub-agent reported back'); return; }
         const title = short(ev.prompt, 90) || 'New request';
         this.project = { id: uid('prj'), title, status: 'running', progress: 0, createdAt: Date.now(), taskIds: [] };
         emit({ type: 'project.upsert', project: { ...this.project } });

@@ -58,6 +58,20 @@ export const POV: PovSegment[] = [
     ],
   },
   {
+    // Lounge glass door, down the workspace aisle to the developer seat, then ask its agent what it is doing
+    // (in the plugin the answer comes from the live task).
+    id: 'pov7', seconds: 19,
+    keys: [
+      k(0, -1.2, 9.4, E), k(2.6, 2.5, 9.35, E), k(5.0, 5.4, 8.95, E - 0.15), k(7.6, 8.1, 8.75, E + 0.25, -0.08),
+      k(9.4, 9.9, 8.6, E + 0.6, -0.14), k(10.8, 10.45, 8.45, N, -0.26), k(19, 10.45, 8.45, N, -0.28),
+    ],
+    events: [
+      { t: 11.4, kind: 'chat', agent: 'developer' },
+      { t: 12.3, kind: 'type', text: 'What are you working on?', seconds: 2.2 },
+      { t: 14.9, kind: 'send' },
+    ],
+  },
+  {
     // The meeting room: walk to a guest seat, sit, then stand up again.
     id: 'pov5', seconds: 10,
     keys: [

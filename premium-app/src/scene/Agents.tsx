@@ -144,9 +144,13 @@ function AgentFigure({ id }: { id: AgentId }) {
 
 export function Agents() {
   const ids = useOffice((s) => AGENT_IDS.filter((id) => !s.agents[id].vacant).join(','));
-  useEffect(() => {
-    // an empty seat must not block anyone walking around
-    for (const id of AGENT_IDS) if (!ids.split(',').includes(id)) Object.assign(agentBodies[id], { x: 1e4, z: 1e4 });
-  }, [ids]);
+  // An empty seat must not block anyone walking around, so its body waits far away; when someone takes
+  // the seat they start at their desk. Done before the figures mount, so they read the right spot.
+  const here = ids.split(',');
+  for (const id of AGENT_IDS) {
+    const b = agentBodies[id];
+    if (!here.includes(id)) Object.assign(b, { x: 1e4, z: 1e4 });
+    else if (b.x > 1e3) { const s = deskSeat(id); Object.assign(b, { x: s.x, z: s.z, rot: s.rot }); }
+  }
   return <>{ids.split(',').filter(Boolean).map((id) => <AgentFigure key={id} id={id as AgentId} />)}</>;
 }
